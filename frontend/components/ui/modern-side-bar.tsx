@@ -14,6 +14,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 
 interface NavigationItem {
@@ -103,13 +104,13 @@ export function Sidebar({
         {/* Logo / brand */}
         <div className="flex items-center justify-between p-4 border-b border-[#FFB81C]/20 flex-shrink-0">
           {isCollapsed ? (
-            <div className="w-8 h-8 rounded-lg bg-[#FFB81C] flex items-center justify-center mx-auto">
-              <span className="text-[#0a0a0a] font-bold text-sm">OU</span>
+            <div className="w-9 h-9 flex items-center justify-center mx-auto">
+              <Image src="/logo.svg" alt="OU Roundnet" width={36} height={36} />
             </div>
           ) : (
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-[#FFB81C] flex items-center justify-center flex-shrink-0">
-                <span className="text-[#0a0a0a] font-bold text-sm">OU</span>
+              <div className="w-9 h-9 flex-shrink-0">
+                <Image src="/logo.svg" alt="OU Roundnet" width={36} height={36} />
               </div>
               <div>
                 <p className="text-white font-semibold text-sm leading-none">OU Roundnet</p>

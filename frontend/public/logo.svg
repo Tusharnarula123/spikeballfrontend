@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none">
+  <!-- Circular text path -->
+  <defs>
+    <path id="topArc" d="M 200,200 m -155,0 a 155,155 0 1,1 310,0"/>
+    <path id="bottomArc" d="M 200,200 m -140,0 a 140,140 0 0,0 280,0"/>
+  </defs>
+
+  <!-- Outer ring -->
+  <circle cx="200" cy="200" r="180" stroke="#FFB81C" stroke-width="3" fill="none" opacity="0.3"/>
+  <circle cx="200" cy="200" r="172" stroke="#FFB81C" stroke-width="1.5" fill="none" opacity="0.15"/>
+
+  <!-- Top arc text: OAKLAND UNIVERSITY -->
+  <text font-family="Georgia, serif" font-size="26" font-weight="700" fill="#FFB81C" letter-spacing="4">
+    <textPath href="#topArc" startOffset="8%">OAKLAND UNIVERSITY</textPath>
+  </text>
+
+  <!-- Bottom arc text: ROUNDNET CLUB -->
+  <text font-family="Georgia, serif" font-size="26" font-weight="700" fill="#FFB81C" letter-spacing="4">
+    <textPath href="#bottomArc" startOffset="14%">ROUNDNET CLUB</textPath>
+  </text>
+
+  <!-- Est. -->
+  <text x="52" y="218" font-family="Georgia, serif" font-size="18" font-weight="600" fill="#FFB81C">Est.</text>
+
+  <!-- 2020 -->
+  <text x="316" y="218" font-family="Georgia, serif" font-size="18" font-weight="600" fill="#FFB81C">2020</text>
+
+  <!-- Spikeball Net (ellipse top) -->
+  <ellipse cx="200" cy="168" rx="80" ry="22" stroke="#111" stroke-width="3.5" fill="none"/>
+
+  <!-- Net grid lines horizontal -->
+  <line x1="122" y1="161" x2="278" y2="161" stroke="#111" stroke-width="2"/>
+  <line x1="120" y1="168" x2="280" y2="168" stroke="#111" stroke-width="2.5"/>
+  <line x1="122" y1="175" x2="278" y2="175" stroke="#111" stroke-width="2"/>
+
+  <!-- Net grid lines vertical -->
+  <line x1="148" y1="147" x2="148" y2="189" stroke="#111" stroke-width="2"/>
+  <line x1="167" y1="147" x2="167" y2="189" stroke="#111" stroke-width="2"/>
+  <line x1="186" y1="146" x2="186" y2="190" stroke="#111" stroke-width="2"/>
+  <line x1="200" y1="146" x2="200" y2="190" stroke="#111" stroke-width="2.5"/>
+  <line x1="214" y1="146" x2="214" y2="190" stroke="#111" stroke-width="2"/>
+  <line x1="233" y1="147" x2="233" y2="189" stroke="#111" stroke-width="2"/>
+  <line x1="252" y1="147" x2="252" y2="189" stroke="#111" stroke-width="2"/>
+
+  <!-- Three legs -->
+  <!-- Left leg -->
+  <path d="M 148,188 L 138,240 L 158,240 L 165,188" stroke="#111" stroke-width="2.5" fill="#FFB81C"/>
+  <!-- Center leg -->
+  <path d="M 186,190 L 180,248 L 220,248 L 214,190" stroke="#111" stroke-width="2.5" fill="#FFB81C"/>
+  <!-- Right leg -->
+  <path d="M 235,188 L 242,240 L 262,240 L 252,188" stroke="#111" stroke-width="2.5" fill="#FFB81C"/>
+
+  <!-- Ball on net -->
+  <circle cx="172" cy="158" r="12" fill="#FFB81C" stroke="#111" stroke-width="2.5"/>
+</svg>

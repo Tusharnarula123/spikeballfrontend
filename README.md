@@ -1,4 +1,3 @@
-# spikeball-ou
 # 🏐 Roundnet Club
 
 A full-stack web application for managing a roundnet (spikeball) club — featuring live ELO rankings, match history, player profiles, badges, seasons, and a competitive session team generator.
@@ -115,6 +114,123 @@ backend/
     auth/                         # Clerk JWT guard + approval flow
     app.module.ts
     main.ts
+```
+
+---
+
+## Database Schema
+
+```sql
+-- Seasons
+CREATE TABLE seasons (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,               -- e.g. "Fall 2025"
+  start_date DATE,
+  end_date DATE,
+  is_active BOOLEAN DEFAULT TRUE
+);
+
+-- Players
+CREATE TABLE players (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clerk_user_id TEXT UNIQUE,
+  name TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  gender TEXT,
+  profile_picture_url TEXT,
+  is_approved BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Player Season Stats (ELO per season)
+CREATE TABLE player_season_stats (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  player_id UUID REFERENCES players(id),
+  season_id UUID REFERENCES seasons(id),
+  elo INTEGER DEFAULT 1000,
+  wins INTEGER DEFAULT 0,
+  losses INTEGER DEFAULT 0,
+  matches_played INTEGER DEFAULT 0,
+  placement_complete BOOLEAN DEFAULT FALSE,  -- true after 5 placement matches
+  best_elo INTEGER DEFAULT 1000,
+  best_rank INTEGER,
+  UNIQUE(player_id, season_id)
+);
+
+-- All-time stats
+CREATE TABLE player_alltime_stats (
+  player_id UUID PRIMARY KEY REFERENCES players(id),
+  elo INTEGER DEFAULT 1000,
+  wins INTEGER DEFAULT 0,
+  losses INTEGER DEFAULT 0,
+  best_elo INTEGER DEFAULT 1000,
+  best_rank INTEGER,
+  tournaments_played INTEGER DEFAULT 0,
+  seasons_played INTEGER DEFAULT 0
+);
+
+-- Matches
+CREATE TABLE matches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  player1_id UUID REFERENCES players(id),
+  player2_id UUID REFERENCES players(id),
+  winner_id UUID REFERENCES players(id),
+  season_id UUID REFERENCES seasons(id),
+  elo_change_player1 INTEGER,
+  elo_change_player2 INTEGER,
+  played_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ELO History (for graph)
+CREATE TABLE elo_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  player_id UUID REFERENCES players(id),
+  season_id UUID REFERENCES seasons(id),
+  elo INTEGER NOT NULL,
+  recorded_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Head-to-head records
+CREATE TABLE head_to_head (
+  player_id UUID REFERENCES players(id),
+  opponent_id UUID REFERENCES players(id),
+  wins INTEGER DEFAULT 0,
+  losses INTEGER DEFAULT 0,
+  PRIMARY KEY (player_id, opponent_id)
+);
+
+-- Badges
+CREATE TABLE badges (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  player_id UUID REFERENCES players(id),
+  badge_type TEXT NOT NULL,         -- 'season_champ', 'rank_1', 'most_improved', etc.
+  season_id UUID REFERENCES seasons(id),
+  awarded_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Competitive Sessions
+CREATE TABLE sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT,
+  date DATE,
+  created_by UUID REFERENCES players(id)
+);
+
+CREATE TABLE session_players (
+  session_id UUID REFERENCES sessions(id),
+  player_id UUID REFERENCES players(id),
+  PRIMARY KEY (session_id, player_id)
+);
+
+CREATE TABLE session_rounds (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID REFERENCES sessions(id),
+  round_number INTEGER,
+  team1_player1 UUID REFERENCES players(id),
+  team1_player2 UUID REFERENCES players(id),
+  team2_player1 UUID REFERENCES players(id),
+  team2_player2 UUID REFERENCES players(id)
+);
 ```
 
 ---

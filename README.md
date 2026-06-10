@@ -77,7 +77,7 @@ A web app for managing the OU Roundnet (spikeball) club — live ELO rankings, m
 
 All matches are **2v2**. When an admin approves a match result, the system automatically recalculates ELO for all 4 players.
 
-- **Starting ELO:** 1000
+- **Starting ELO:** 1200
 - **Placement phase (first 10 matches):** K-factor = 60 (bigger swings while you're getting ranked)
 - **After 10 matches:** K-factor = 24 (smaller, more stable changes)
 - ELO is calculated using the average ELO of the opposing team as the reference point
@@ -167,4 +167,4 @@ Set Root Directory to `frontend` in Vercel project settings, then add the same 4
 
 ## Contributing
 
-This is a private club member's project. 
+This is a private club project. Contact an admin to get access.

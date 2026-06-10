@@ -1,5 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { useSignIn } from "@clerk/nextjs/legacy";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,6 +82,8 @@ const EyeBall = ({ size = 48, pupilSize = 16, maxDistance = 10, eyeColor = "whit
 
 // ─── Login Page ───────────────────────────────────────────────────────────────
 function LoginPage() {
+  const { isLoaded, signIn, setActive } = useSignIn();
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -153,16 +157,35 @@ function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isLoaded) return;
     setError("");
     setIsLoading(true);
-    await new Promise(r => setTimeout(r, 400));
-    // TODO: replace with real Clerk auth
-    if (!email || !password) {
-      setError("Please fill in all fields.");
-    } else {
-      setError("Auth not yet connected — Clerk integration coming soon.");
+    try {
+      const result = await signIn.create({
+        identifier: email,
+        password,
+      });
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        router.push("/dashboard");
+      } else {
+        setError("Sign-in could not be completed. Please try again.");
+      }
+    } catch (err: unknown) {
+      const clerkError = err as { errors?: { message: string }[] };
+      setError(clerkError.errors?.[0]?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
+  };
+
+  const handleGoogleSignIn = () => {
+    if (!isLoaded) return;
+    signIn.authenticateWithRedirect({
+      strategy: "oauth_google",
+      redirectUrl: "/sso-callback",
+      redirectUrlComplete: "/dashboard",
+    });
   };
 
   const hidingPassword = password.length > 0 && !showPassword;
@@ -395,7 +418,7 @@ function LoginPage() {
           </div>
 
           {/* Google */}
-          <Button variant="outline" className="w-full h-12 border-gray-200 hover:bg-gray-50 text-gray-700" type="button">
+          <Button variant="outline" className="w-full h-12 border-gray-200 hover:bg-gray-50 text-gray-700" type="button" onClick={handleGoogleSignIn}>
             <svg className="mr-2 w-5 h-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
               <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>

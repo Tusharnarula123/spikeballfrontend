@@ -4,15 +4,13 @@ import { useState, useEffect, useRef } from 'react';
 import { useUser, useClerk } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/ui/modern-side-bar';
+import { EditProfileModal } from '@/components/ui/edit-profile-modal';
 import {
   Trophy,
   ChevronDown,
   Settings,
   Edit3,
-  Camera,
   LogOut,
-  X,
-  Check,
   Info,
   Zap,
   TrendingUp,
@@ -63,10 +61,6 @@ export default function DashboardPage() {
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
-  const [university, setUniversity] = useState('');
-  const [bio, setBio] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [profileError, setProfileError] = useState<string | null>(null);
 
   const avatarMenuRef = useRef<HTMLDivElement>(null);
 
@@ -92,16 +86,12 @@ export default function DashboardPage() {
       .catch(() => setAnnouncements([]));
   }, []);
 
-  // Fetch current player's DB id (to highlight their leaderboard row) + saved profile fields
+  // Fetch current player's DB id (to highlight their leaderboard row)
   useEffect(() => {
     if (!isLoaded || !user) return;
     fetch('/api/players/me')
       .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.id) setMyPlayerId(data.id);
-        if (typeof data?.university === 'string') setUniversity(data.university);
-        if (typeof data?.bio === 'string') setBio(data.bio);
-      })
+      .then(data => { if (data?.id) setMyPlayerId(data.id); })
       .catch(() => {});
   }, [isLoaded, user]);
 
@@ -137,28 +127,6 @@ export default function DashboardPage() {
     if (lbFilter === 'Women') return p.gender === 'female';
     return true;
   });
-
-  const handleSaveProfile = async () => {
-    setSaving(true);
-    setProfileError(null);
-    try {
-      const res = await fetch('/api/players/me', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ university, bio }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setProfileError(data.error ?? 'Failed to save profile');
-        return;
-      }
-      setShowEditProfile(false);
-    } catch {
-      setProfileError('Network error — please try again.');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <div className="flex h-screen bg-[#f5f4f0] overflow-hidden">
@@ -426,112 +394,10 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Edit Profile Modal ── */}
-      {showEditProfile && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
-
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-[#0a0a0a]">Edit Profile</h2>
-              <button
-                onClick={() => setShowEditProfile(false)}
-                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <X className="h-5 w-5 text-gray-400" />
-              </button>
-            </div>
-
-            <div className="px-6 py-5 space-y-5 overflow-y-auto max-h-[70vh]">
-
-              {/* Avatar */}
-              <div className="flex flex-col items-center gap-2">
-                <div className="relative">
-                  <div className="w-20 h-20 rounded-full bg-[#FFB81C] flex items-center justify-center overflow-hidden border-4 border-white shadow-md">
-                    {avatarUrl
-                      ? <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
-                      : <span className="text-[#0a0a0a] font-bold text-2xl">{initials}</span>}
-                  </div>
-                  <button className="absolute -bottom-1 -right-1 w-7 h-7 bg-[#0a0a0a] rounded-full flex items-center justify-center shadow border-2 border-white">
-                    <Camera className="h-3 w-3 text-[#FFB81C]" />
-                  </button>
-                </div>
-                <p className="text-xs text-gray-400 text-center">
-                  Profile photo is managed through your Clerk account
-                </p>
-              </div>
-
-              {/* Display name (read-only) */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                  Display Name
-                </label>
-                <input
-                  type="text"
-                  value={displayName}
-                  readOnly
-                  className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-400 cursor-not-allowed"
-                />
-                <p className="text-xs text-gray-400 mt-1">
-                  Change your name in your{' '}
-                  <a href="https://accounts.clerk.dev" target="_blank" rel="noreferrer" className="text-[#FFB81C] underline">
-                    Clerk account
-                  </a>
-                </p>
-              </div>
-
-              {/* University / School / College */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                  University / School / College
-                </label>
-                <input
-                  type="text"
-                  value={university}
-                  onChange={e => setUniversity(e.target.value)}
-                  placeholder="e.g. Oakland University"
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FFB81C] focus:border-transparent transition-all"
-                />
-              </div>
-
-              {/* Bio */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                  Bio <span className="text-gray-400 normal-case font-normal">(optional)</span>
-                </label>
-                <textarea
-                  value={bio}
-                  onChange={e => setBio(e.target.value)}
-                  placeholder="Tell the club a bit about yourself…"
-                  rows={3}
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FFB81C] focus:border-transparent transition-all resize-none"
-                />
-              </div>
-            </div>
-
-            {/* Modal footer */}
-            <div className="px-6 py-4 border-t border-gray-100">
-              {profileError && <p className="text-xs text-red-500 mb-3">{profileError}</p>}
-              <div className="flex gap-3">
-              <button
-                onClick={() => setShowEditProfile(false)}
-                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveProfile}
-                disabled={saving}
-                className="flex-1 px-4 py-2.5 bg-[#FFB81C] rounded-lg text-sm font-bold text-[#0a0a0a] hover:bg-[#e6a418] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-60"
-              >
-                {saving
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <><Check className="h-4 w-4" /> Save Changes</>}
-              </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <EditProfileModal
+        open={showEditProfile}
+        onClose={() => setShowEditProfile(false)}
+      />
     </div>
   );
 }

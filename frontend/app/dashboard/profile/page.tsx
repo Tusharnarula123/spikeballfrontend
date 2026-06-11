@@ -17,6 +17,7 @@ interface Player {
   status: string;
   created_at: string;
   university?: string;
+  bio?: string;
   player_badges?: {
     badge_id: string;
     awarded_at: string;
@@ -205,6 +206,16 @@ export default function ProfilePage() {
           <StatCard label="School"  value={university} />
           <StatCard label="Member Since" value={memberSince} />
         </div>
+
+        {/* ── Bio ── */}
+        {player?.bio && (
+          <>
+            <SectionTitle>About</SectionTitle>
+            <div className="bg-[#111] border border-white/10 rounded-xl p-4">
+              <p className="text-white/70 text-sm leading-relaxed whitespace-pre-wrap">{player.bio}</p>
+            </div>
+          </>
+        )}
 
         {/* ── Current Season ── */}
         <SectionTitle>Current Season</SectionTitle>

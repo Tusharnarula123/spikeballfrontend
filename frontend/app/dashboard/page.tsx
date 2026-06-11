@@ -42,38 +42,6 @@ interface Announcement {
   type: 'tournament' | 'update' | 'event' | 'general';
 }
 
-// Announcements — newest first (mock until announcements table is built)
-const MOCK_ANNOUNCEMENTS: Announcement[] = [
-  {
-    id: '1',
-    title: '🏆 Spring Tournament 2025',
-    content: 'Registration is now open for the Spring Tournament! Sign up by March 15. Teams of 2, round-robin format. Prize: custom OU Roundnet jerseys for the champions.',
-    date: '2025-03-01',
-    type: 'tournament',
-  },
-  {
-    id: '2',
-    title: '📅 New Practice Schedule',
-    content: 'Tuesdays & Thursdays 5–7 PM at the Rec Center outdoor courts starting this week. All skill levels welcome. Bring water!',
-    date: '2025-02-22',
-    type: 'event',
-  },
-  {
-    id: '3',
-    title: '🆕 ELO System Updated',
-    content: 'K-factor is now 60 for placement matches (first 10) and 24 after. Check the ELO guide below for the full breakdown.',
-    date: '2025-02-15',
-    type: 'update',
-  },
-  {
-    id: '4',
-    title: '👋 Welcome New Members!',
-    content: 'Complete your 10 placement matches to appear on the official leaderboard.',
-    date: '2025-01-20',
-    type: 'general',
-  },
-];
-
 const TYPE_STYLES: Record<Announcement['type'], string> = {
   tournament: 'bg-purple-50  text-purple-700  border-purple-200',
   update:     'bg-blue-50    text-blue-700    border-blue-200',
@@ -89,6 +57,7 @@ export default function DashboardPage() {
   const router = useRouter();
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [lbFilter, setLbFilter] = useState('All');
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
@@ -105,6 +74,20 @@ export default function DashboardPage() {
       .then(r => r.json())
       .then(data => setLeaderboard(Array.isArray(data) ? data : []))
       .catch(() => setLeaderboard([]));
+  }, []);
+
+  // Fetch announcements (live tournaments + general club news)
+  useEffect(() => {
+    fetch('/api/announcements')
+      .then(r => r.json())
+      .then((data: { id: string; type: Announcement['type']; title: string; body: string; date: string }[]) => {
+        setAnnouncements(
+          Array.isArray(data)
+            ? data.map(a => ({ id: a.id, title: a.title, content: a.body, date: a.date, type: a.type }))
+            : [],
+        );
+      })
+      .catch(() => setAnnouncements([]));
   }, []);
 
   // Fetch current player's DB id to know which row to highlight
@@ -393,7 +376,12 @@ export default function DashboardPage() {
                 className="flex gap-4 overflow-x-auto pb-3"
                 style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
               >
-                {MOCK_ANNOUNCEMENTS.map((ann) => (
+                {announcements.length === 0 && (
+                  <div className="flex-shrink-0 w-72 bg-white rounded-2xl border border-gray-100 shadow-sm p-5 text-center text-sm text-gray-400">
+                    No announcements right now.
+                  </div>
+                )}
+                {announcements.map((ann) => (
                   <div
                     key={ann.id}
                     className="flex-shrink-0 w-72 bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col"

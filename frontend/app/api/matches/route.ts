@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const { team1Player1Id, team1Player2Id, team2Player1Id, team2Player2Id,
-          winningTeam, scoreTeam1, scoreTeam2, notes } = body;
+          winningTeam, scoreTeam1, scoreTeam2, notes, tournamentId } = body;
 
   const playerIds = [team1Player1Id, team1Player2Id, team2Player1Id, team2Player2Id];
   if (!playerIds.includes(player.id)) {
@@ -50,6 +50,26 @@ export async function POST(req: NextRequest) {
 
   const season = await getActiveSeason();
   if (!season) return err('No active season');
+
+  // Tournament match: validate it's live and all 4 players are registered
+  if (tournamentId) {
+    const { data: tournament } = await supabase
+      .from('tournaments').select('id, status').eq('id', tournamentId).single();
+    if (!tournament) return err('Tournament not found', 404);
+    if (tournament.status !== 'in_progress') {
+      return err('This tournament is not currently in progress');
+    }
+
+    const { data: regs } = await supabase
+      .from('tournament_registrations')
+      .select('player_id')
+      .eq('tournament_id', tournamentId)
+      .in('player_id', playerIds);
+
+    if (!regs || regs.length < 4) {
+      return err('All 4 players must be registered for this tournament');
+    }
+  }
 
   const { data, error } = await supabase
     .from('matches')
@@ -65,6 +85,7 @@ export async function POST(req: NextRequest) {
       notes,
       submitted_by:     player.id,
       status:           'pending',
+      tournament_id:    tournamentId ?? null,
     })
     .select()
     .single();

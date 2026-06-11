@@ -19,30 +19,6 @@ interface LeaderboardEntry {
   gender?: string
 }
 
-const ANNOUNCEMENTS = [
-  {
-    id: 1,
-    tag: 'Event',
-    title: 'Spring Season Kickoff',
-    date: 'Jan 15, 2025',
-    body: 'Spring season starts this week! All new members need to complete their 5 placement matches to receive a ranking. Sessions are Tuesdays & Thursdays at the Rec Center.',
-  },
-  {
-    id: 2,
-    tag: 'Tournament',
-    title: 'OU Invitational — Sign Ups Open',
-    date: 'Jan 10, 2025',
-    body: 'Our annual invitational is back. Register your 2v2 team by February 1st. Open to OU students and alumni. Cash prizes for top 3 teams.',
-  },
-  {
-    id: 3,
-    tag: 'Update',
-    title: 'ELO System Now Live',
-    date: 'Jan 5, 2025',
-    body: 'Our new ELO ranking system is live. Rankings update in real time after every match. Check your profile to see your current ELO and season stats.',
-  },
-]
-
 // ─── Scroll reveal hook ───────────────────────────────────────────────────────
 function useScrollReveal() {
   useEffect(() => {
@@ -386,12 +362,37 @@ function About() {
 }
 
 // ─── Announcements ────────────────────────────────────────────────────────────
+interface Announcement {
+  id: string
+  type: 'tournament' | 'update' | 'event' | 'general'
+  title: string
+  body: string
+  date: string
+}
+
+const TAG_LABELS: Record<Announcement['type'], string> = {
+  tournament: 'Tournament',
+  update:     'Update',
+  event:      'Event',
+  general:    'General',
+}
+
+const TAG_COLORS: Record<Announcement['type'], { bg: string; text: string }> = {
+  event:      { bg: 'rgba(255,184,28,0.1)',   text: '#c98a00' },
+  tournament: { bg: 'rgba(99,102,241,0.08)',  text: '#6366f1' },
+  update:     { bg: 'rgba(34,197,94,0.08)',   text: '#16a34a' },
+  general:    { bg: 'rgba(148,163,184,0.12)', text: '#64748b' },
+}
+
 function Announcements() {
-  const tagColors = {
-    Event:      { bg: 'rgba(255,184,28,0.1)',   text: '#c98a00' },
-    Tournament: { bg: 'rgba(99,102,241,0.08)',  text: '#6366f1' },
-    Update:     { bg: 'rgba(34,197,94,0.08)',   text: '#16a34a' },
-  }
+  const [announcements, setAnnouncements] = useState<Announcement[]>([])
+
+  useEffect(() => {
+    fetch('/api/announcements')
+      .then(r => r.json())
+      .then(data => setAnnouncements(Array.isArray(data) ? data : []))
+      .catch(() => setAnnouncements([]))
+  }, [])
 
   return (
     <section id="announcements" className="py-24 px-6" style={{ backgroundColor: '#f9f9f9' }}>
@@ -403,7 +404,11 @@ function Announcements() {
         </div>
 
         <div className="space-y-4">
-          {ANNOUNCEMENTS.map((a, i) => (
+          {announcements.length === 0 ? (
+            <div className="animate-on-scroll bg-white rounded-2xl p-6 border border-gray-100 text-center text-sm text-gray-400">
+              No announcements right now — check back soon!
+            </div>
+          ) : announcements.map((a, i) => (
             <div key={a.id}
               className="animate-on-scroll bg-white rounded-2xl p-6 border border-gray-100 transition-all duration-200 hover:border-gray-200 hover:shadow-sm cursor-pointer group"
               style={{ transitionDelay: `${i * 0.1}s` }}>
@@ -411,10 +416,12 @@ function Announcements() {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
                     <span className="text-xs font-medium px-2.5 py-1 rounded-full"
-                      style={{ backgroundColor: tagColors[a.tag]?.bg, color: tagColors[a.tag]?.text }}>
-                      {a.tag}
+                      style={{ backgroundColor: TAG_COLORS[a.type]?.bg, color: TAG_COLORS[a.type]?.text }}>
+                      {TAG_LABELS[a.type] ?? 'General'}
                     </span>
-                    <span className="text-xs text-gray-400">{a.date}</span>
+                    <span className="text-xs text-gray-400">
+                      {new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </span>
                   </div>
                   <h3 className="text-gray-900 font-semibold mb-2 group-hover:text-[#FFB81C] transition-colors">{a.title}</h3>
                   <p className="text-gray-500 text-sm leading-relaxed">{a.body}</p>

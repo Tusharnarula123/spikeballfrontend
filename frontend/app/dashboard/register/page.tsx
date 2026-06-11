@@ -1,0 +1,337 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useUser, useClerk } from '@clerk/nextjs';
+import { useRouter } from 'next/navigation';
+import { Sidebar } from '@/components/ui/modern-side-bar';
+import {
+  UserPlus, Trophy, Calendar, Users, Shuffle, Loader2, Check, X, Zap, GraduationCap,
+} from 'lucide-react';
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+interface Player {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  age: number;
+  gender: string;
+  university?: string | null;
+  current_elo: number;
+  status?: string;
+}
+
+interface Tournament {
+  id: string;
+  name: string;
+  description: string | null;
+  is_casual: boolean;
+  affects_elo: boolean;
+  team_formation: 'random' | 'self_select';
+  start_date: string;
+  end_date: string | null;
+  status: 'upcoming' | 'registration_open' | 'in_progress' | 'completed' | 'cancelled';
+  registration_count: number;
+}
+
+interface MyRegistration {
+  registrationId: string;
+  registeredAt: string;
+  preferredPartnerId: string | null;
+  tournament: Tournament;
+  teamId: string | null;
+  partner: { id: string; first_name: string; last_name: string } | null;
+}
+
+const STATUS_LABELS: Record<Tournament['status'], string> = {
+  upcoming: 'Upcoming',
+  registration_open: 'Registration Open',
+  in_progress: 'In Progress',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+};
+
+const STATUS_STYLES: Record<Tournament['status'], string> = {
+  upcoming: 'bg-gray-50 text-gray-600 border-gray-200',
+  registration_open: 'bg-green-50 text-green-700 border-green-200',
+  in_progress: 'bg-purple-50 text-purple-700 border-purple-200',
+  completed: 'bg-blue-50 text-blue-700 border-blue-200',
+  cancelled: 'bg-red-50 text-red-600 border-red-200',
+};
+
+export default function RegisterPage() {
+  const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
+  const router = useRouter();
+
+  const [player, setPlayer] = useState<Player | null>(null);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [myRegs, setMyRegs] = useState<MyRegistration[]>([]);
+  const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [partnerChoice, setPartnerChoice] = useState<Record<string, string>>({});
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = async () => {
+    const [tRes, mRes] = await Promise.all([
+      fetch('/api/tournaments?status=registration_open,upcoming,in_progress'),
+      fetch('/api/tournaments/me'),
+    ]);
+    if (tRes.ok) setTournaments(await tRes.json());
+    if (mRes.ok) setMyRegs(await mRes.json());
+  };
+
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const load = async () => {
+      try {
+        const [pRes, opRes] = await Promise.all([
+          fetch('/api/players/me'),
+          fetch('/api/players?excludeSelf=true'),
+        ]);
+        if (pRes.ok) setPlayer(await pRes.json());
+        if (opRes.ok) setOtherPlayers(await opRes.json());
+        await refresh();
+      } catch {
+        // silently fail
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [isLoaded]);
+
+  const handleRegister = async (tournamentId: string) => {
+    setBusyId(tournamentId);
+    setError(null);
+    try {
+      const preferredPartnerId = partnerChoice[tournamentId];
+      const res = await fetch(`/api/tournaments/${tournamentId}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preferredPartnerId: preferredPartnerId || null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? 'Failed to register');
+        return;
+      }
+      await refresh();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleUnregister = async (tournamentId: string) => {
+    setBusyId(tournamentId);
+    setError(null);
+    try {
+      const res = await fetch(`/api/tournaments/${tournamentId}/register`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error ?? 'Failed to unregister');
+        return;
+      }
+      await refresh();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  if (!isLoaded || loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#0a0a0a]">
+        <div className="w-8 h-8 border-2 border-[#FFB81C] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const firstName  = user?.firstName ?? '';
+  const lastName   = user?.lastName  ?? '';
+  const initials   = `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
+  const displayName = player ? `${player.first_name} ${player.last_name}` : `${firstName} ${lastName}`.trim() || 'Player';
+
+  const myRegMap = new Map(myRegs.map(r => [r.tournament.id, r]));
+
+  return (
+    <div className="flex h-screen bg-[#f5f4f0] overflow-hidden">
+      <Sidebar
+        playerName={displayName}
+        playerInitials={initials}
+        playerRole={player?.status === 'active' ? 'Active Player' : 'Pending Approval'}
+        onSignOut={() => signOut(() => router.push('/'))}
+      />
+
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between flex-shrink-0 shadow-sm">
+          <div className="ml-14 md:ml-0">
+            <h1 className="text-xl font-bold text-[#0a0a0a]">Register for a Match</h1>
+            <p className="text-sm text-gray-400 mt-0.5">View your profile info and sign up for open tournaments.</p>
+          </div>
+        </header>
+
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+
+            {/* ── Player Info ── */}
+            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <UserPlus className="w-5 h-5 text-[#FFB81C]" />
+                <h2 className="text-lg font-bold text-gray-900">Your Info</h2>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                <InfoStat label="Name" value={`${player?.first_name ?? ''} ${player?.last_name ?? ''}`.trim() || '—'} />
+                <InfoStat label="School" value={player?.university || '—'} icon={<GraduationCap className="w-3.5 h-3.5" />} />
+                <InfoStat label="Age" value={player?.age ?? '—'} />
+                <InfoStat label="Gender" value={player?.gender ? player.gender.charAt(0).toUpperCase() + player.gender.slice(1) : '—'} />
+                <InfoStat label="ELO" value={player?.current_elo ?? '—'} gold icon={<Zap className="w-3.5 h-3.5" />} />
+              </div>
+            </section>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3">
+                {error}
+              </div>
+            )}
+
+            {/* ── Open Tournaments ── */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <Trophy className="w-5 h-5 text-[#FFB81C]" />
+                <h2 className="text-lg font-bold text-[#0a0a0a]">Tournaments</h2>
+              </div>
+
+              {tournaments.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center text-sm text-gray-400">
+                  No tournaments are open right now. Check back soon!
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {tournaments.map(t => {
+                    const reg = myRegMap.get(t.id);
+                    const isRegistered = !!reg;
+                    const isBusy = busyId === t.id;
+                    const canRegister = t.status === 'registration_open' && !isRegistered;
+                    const canUnregister = isRegistered && t.status !== 'in_progress' && t.status !== 'completed';
+
+                    return (
+                      <div key={t.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                        <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                              <h3 className="font-bold text-gray-900">{t.name}</h3>
+                              <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full border ${STATUS_STYLES[t.status]}`}>
+                                {STATUS_LABELS[t.status]}
+                              </span>
+                              {t.is_casual && (
+                                <span className="text-xs font-medium px-2.5 py-0.5 rounded-full border bg-gray-50 text-gray-500 border-gray-200">
+                                  Casual
+                                </span>
+                              )}
+                              <span className="text-xs font-medium px-2.5 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">
+                                {t.affects_elo ? 'Affects ELO' : 'No ELO Impact'}
+                              </span>
+                              <span className="text-xs font-medium px-2.5 py-0.5 rounded-full border bg-indigo-50 text-indigo-600 border-indigo-200 flex items-center gap-1">
+                                {t.team_formation === 'random' ? <Shuffle className="w-3 h-3" /> : <Users className="w-3 h-3" />}
+                                {t.team_formation === 'random' ? 'Random Teams' : 'Players Choose Teams'}
+                              </span>
+                            </div>
+                            {t.description && (
+                              <p className="text-sm text-gray-500 mb-1.5 max-w-xl">{t.description}</p>
+                            )}
+                            <p className="text-xs text-gray-400 flex items-center gap-1.5">
+                              <Calendar className="w-3.5 h-3.5" />
+                              {new Date(t.start_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              {t.end_date && ` – ${new Date(t.end_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
+                              <span className="mx-1">·</span>
+                              <Users className="w-3.5 h-3.5" />
+                              {t.registration_count} registered
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Registration status / actions */}
+                        <div className="pt-3 border-t border-gray-50">
+                          {isRegistered ? (
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="flex items-center gap-1.5 text-green-600 font-semibold">
+                                  <Check className="w-4 h-4" />
+                                  You&apos;re registered
+                                </span>
+                                {reg.partner ? (
+                                  <span className="text-gray-500">
+                                    · Teamed with <span className="font-medium text-gray-700">{reg.partner.first_name} {reg.partner.last_name}</span>
+                                  </span>
+                                ) : reg.preferredPartnerId ? (
+                                  <span className="text-gray-400">· Requested partner pending team formation</span>
+                                ) : (
+                                  <span className="text-gray-400">· Waiting for team formation</span>
+                                )}
+                              </div>
+                              {canUnregister && (
+                                <button
+                                  onClick={() => handleUnregister(t.id)}
+                                  disabled={isBusy}
+                                  className="text-xs font-semibold px-3 py-1.5 rounded-full border border-red-200 text-red-500 hover:bg-red-50 transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                                >
+                                  {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                                  Unregister
+                                </button>
+                              )}
+                            </div>
+                          ) : canRegister ? (
+                            <div className="flex flex-wrap items-center gap-3">
+                              {t.team_formation === 'self_select' && (
+                                <select
+                                  value={partnerChoice[t.id] ?? ''}
+                                  onChange={e => setPartnerChoice(prev => ({ ...prev, [t.id]: e.target.value }))}
+                                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#FFB81C] focus:border-transparent"
+                                >
+                                  <option value="">Pick a teammate (optional)</option>
+                                  {otherPlayers.map(p => (
+                                    <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>
+                                  ))}
+                                </select>
+                              )}
+                              <button
+                                onClick={() => handleRegister(t.id)}
+                                disabled={isBusy}
+                                className="text-xs font-bold px-4 py-2 rounded-full flex items-center gap-1.5 disabled:opacity-60"
+                                style={{ backgroundColor: '#FFB81C', color: '#0a0a0a' }}
+                              >
+                                {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
+                                Register
+                              </button>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-gray-400">
+                              {t.status === 'in_progress' ? 'This tournament is already underway.' : 'Registration is not currently open.'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InfoStat({ label, value, sub, gold = false, icon }: { label: string; value: string | number; sub?: string; gold?: boolean; icon?: React.ReactNode }) {
+  return (
+    <div className="bg-[#f5f4f0] rounded-xl p-3 flex flex-col gap-1">
+      <p className="text-gray-400 text-xs uppercase tracking-wide flex items-center gap-1">{icon}{label}</p>
+      <p className={`text-base font-bold ${gold ? 'text-[#FFB81C]' : 'text-gray-900'} truncate`}>{value}</p>
+      {sub && <p className="text-gray-400 text-xs">{sub}</p>}
+    </div>
+  );
+}

@@ -12,10 +12,13 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Trophy,
+  ClipboardCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
 
 interface NavigationItem {
   id: string;
@@ -31,6 +34,11 @@ const navigationItems: NavigationItem[] = [
   { id: 'analytics',  name: 'Analytics',       icon: BarChart3, href: '/dashboard/analytics' },
   { id: 'submit',     name: 'Submit Score',    icon: Swords,   href: '/dashboard/submit' },
   { id: 'register',   name: 'Register Match',  icon: UserPlus, href: '/dashboard/register' },
+];
+
+const adminNavigationItems: NavigationItem[] = [
+  { id: 'admin-tournaments', name: 'Create Tournament', icon: Trophy,          href: '/dashboard/admin/tournaments' },
+  { id: 'admin-approvals',   name: 'Approve Scores',    icon: ClipboardCheck,  href: '/dashboard/admin/approvals' },
 ];
 
 interface SidebarProps {
@@ -51,6 +59,9 @@ export function Sidebar({
   const [isOpen, setIsOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const pathname = usePathname();
+  const { user } = useUser();
+  const isAdmin = user?.publicMetadata?.role === 'admin';
+  const items = isAdmin ? [...navigationItems, ...adminNavigationItems] : navigationItems;
 
   useEffect(() => {
     const handleResize = () => {
@@ -132,7 +143,7 @@ export function Sidebar({
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 overflow-y-auto">
           <ul className="space-y-1">
-            {navigationItems.map((item) => {
+            {items.map((item) => {
               const Icon = item.icon;
               const isActive =
                 pathname === item.href ||

@@ -16,6 +16,20 @@ export async function PATCH(_req: NextRequest, { params }: { params: Promise<{ i
 
   const admin = await getPlayerByClerkId(auth.userId);
 
+  // Tournament matches marked as not affecting ELO: just mark approved.
+  if (match.tournament_id) {
+    const { data: tournament } = await supabase
+      .from('tournaments').select('affects_elo').eq('id', match.tournament_id).single();
+    if (tournament && tournament.affects_elo === false) {
+      const { data: approved } = await supabase
+        .from('matches')
+        .update({ status: 'approved', approved_by: admin?.id, approved_at: new Date().toISOString() })
+        .eq('id', matchId).select().single();
+
+      return NextResponse.json({ match: approved, deltas: null, newElos: null });
+    }
+  }
+
   const playerIds: string[] = [
     match.team1_player1_id, match.team1_player2_id,
     match.team2_player1_id, match.team2_player2_id,

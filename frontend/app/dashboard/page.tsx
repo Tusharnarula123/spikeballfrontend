@@ -27,6 +27,7 @@ interface LeaderboardEntry {
   rank: number;
   player_id: string;
   display_name: string;
+  gender: string | null;
   current_elo: number;
   wins: number;
   losses: number;
@@ -65,6 +66,7 @@ export default function DashboardPage() {
   const [university, setUniversity] = useState('');
   const [bio, setBio] = useState('');
   const [saving, setSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   const avatarMenuRef = useRef<HTMLDivElement>(null);
 
@@ -90,12 +92,16 @@ export default function DashboardPage() {
       .catch(() => setAnnouncements([]));
   }, []);
 
-  // Fetch current player's DB id to know which row to highlight
+  // Fetch current player's DB id (to highlight their leaderboard row) + saved profile fields
   useEffect(() => {
     if (!isLoaded || !user) return;
     fetch('/api/players/me')
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.id) setMyPlayerId(data.id); })
+      .then(data => {
+        if (data?.id) setMyPlayerId(data.id);
+        if (typeof data?.university === 'string') setUniversity(data.university);
+        if (typeof data?.bio === 'string') setBio(data.bio);
+      })
       .catch(() => {});
   }, [isLoaded, user]);
 
@@ -127,17 +133,31 @@ export default function DashboardPage() {
   const myEntry = leaderboard.find(p => p.player_id === myPlayerId);
 
   const filteredLb = leaderboard.filter(p => {
-    if (lbFilter === 'Men')   return (p as any).gender === 'male';
-    if (lbFilter === 'Women') return (p as any).gender === 'female';
+    if (lbFilter === 'Men')   return p.gender === 'male';
+    if (lbFilter === 'Women') return p.gender === 'female';
     return true;
   });
 
   const handleSaveProfile = async () => {
     setSaving(true);
-    // TODO: PATCH /api/players/me  { university, bio }
-    await new Promise(r => setTimeout(r, 800));
-    setSaving(false);
-    setShowEditProfile(false);
+    setProfileError(null);
+    try {
+      const res = await fetch('/api/players/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ university, bio }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setProfileError(data.error ?? 'Failed to save profile');
+        return;
+      }
+      setShowEditProfile(false);
+    } catch {
+      setProfileError('Network error — please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -489,7 +509,9 @@ export default function DashboardPage() {
             </div>
 
             {/* Modal footer */}
-            <div className="flex gap-3 px-6 py-4 border-t border-gray-100">
+            <div className="px-6 py-4 border-t border-gray-100">
+              {profileError && <p className="text-xs text-red-500 mb-3">{profileError}</p>}
+              <div className="flex gap-3">
               <button
                 onClick={() => setShowEditProfile(false)}
                 className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
@@ -505,6 +527,7 @@ export default function DashboardPage() {
                   ? <Loader2 className="h-4 w-4 animate-spin" />
                   : <><Check className="h-4 w-4" /> Save Changes</>}
               </button>
+              </div>
             </div>
           </div>
         </div>

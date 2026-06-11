@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useUser, useClerk } from '@clerk/nextjs';
+import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import { Sidebar } from '@/components/ui/modern-side-bar';
+import { DashboardShell, SectionHeading, EmptyState, Chip } from '@/components/ui/dashboard-shell';
 import {
   Trophy, Plus, Users, Shuffle, Calendar, Loader2, ChevronDown, ChevronUp,
 } from 'lucide-react';
@@ -69,7 +69,6 @@ const emptyForm = {
 
 export default function AdminTournamentsPage() {
   const { user, isLoaded } = useUser();
-  const { signOut } = useClerk();
   const router = useRouter();
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -207,45 +206,26 @@ export default function AdminTournamentsPage() {
     }
   };
 
-  if (!isLoaded || (isLoaded && !isAdmin)) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-[#0a0a0a]">
-        <div className="w-8 h-8 border-2 border-[#FFB81C] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (isLoaded && !isAdmin) return null;
 
-  const firstName  = user?.firstName ?? '';
-  const lastName   = user?.lastName  ?? '';
-  const initials   = `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
-  const displayName = `${firstName} ${lastName}`.trim() || 'Admin';
+  const liveCount = tournaments.filter(t => t.status === 'in_progress' || t.status === 'registration_open').length;
 
   return (
-    <div className="flex h-screen bg-[#f5f4f0] overflow-hidden">
-      <Sidebar
-        playerName={displayName}
-        playerInitials={initials}
-        playerRole="Admin"
-        onSignOut={() => signOut(() => router.push('/'))}
-      />
-
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between flex-shrink-0 shadow-sm">
-          <div className="ml-14 md:ml-0">
-            <h1 className="text-xl font-bold text-[#0a0a0a]">Tournament Management</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Create tournaments and manage registrations.</p>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
-
+    <DashboardShell
+      title="Tournament Management"
+      subtitle="Create tournaments, control their lifecycle, and form teams."
+      loading={!isLoaded || loading}
+      width="wide"
+      headerRight={
+        <Chip className="bg-purple-50 text-purple-700 border-purple-200 font-semibold">
+          <Trophy className="w-3.5 h-3.5" />
+          {liveCount} live
+        </Chip>
+      }
+    >
             {/* ── Create Tournament ── */}
             <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Plus className="w-5 h-5 text-[#FFB81C]" />
-                <h2 className="text-lg font-bold text-gray-900">Create Tournament</h2>
-              </div>
+              <SectionHeading icon={<Plus />} title="Create Tournament" />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
@@ -382,19 +362,10 @@ export default function AdminTournamentsPage() {
 
             {/* ── Existing Tournaments ── */}
             <section>
-              <div className="flex items-center gap-2 mb-4">
-                <Trophy className="h-5 w-5 text-[#FFB81C]" />
-                <h2 className="text-lg font-bold text-[#0a0a0a]">Tournaments</h2>
-              </div>
+              <SectionHeading icon={<Trophy />} title="Tournaments" />
 
-              {loading ? (
-                <div className="px-4 py-16 text-center">
-                  <div className="w-6 h-6 border-2 border-[#FFB81C] border-t-transparent rounded-full animate-spin mx-auto" />
-                </div>
-              ) : tournaments.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center text-sm text-gray-400">
-                  No tournaments created yet.
-                </div>
+              {tournaments.length === 0 ? (
+                <EmptyState icon={<Trophy />} message="No tournaments created yet — set one up above." />
               ) : (
                 <div className="space-y-4">
                   {tournaments.map(t => (
@@ -519,9 +490,6 @@ export default function AdminTournamentsPage() {
               )}
             </section>
 
-          </div>
-        </div>
-      </div>
-    </div>
+    </DashboardShell>
   );
 }

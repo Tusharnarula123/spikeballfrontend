@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useUser, useClerk } from '@clerk/nextjs';
-import { useRouter } from 'next/navigation';
-import { Sidebar } from '@/components/ui/modern-side-bar';
+import { useUser } from '@clerk/nextjs';
+import { DashboardShell, Chip } from '@/components/ui/dashboard-shell';
 import {
   Swords, Trophy, Loader2, Check, Users,
 } from 'lucide-react';
@@ -34,9 +33,7 @@ interface MyRegistration {
 const fullName = (p: Player | { id: string; first_name: string; last_name: string }) => `${p.first_name} ${p.last_name}`;
 
 export default function SubmitScorePage() {
-  const { user, isLoaded } = useUser();
-  const { signOut } = useClerk();
-  const router = useRouter();
+  const { isLoaded } = useUser();
 
   const [me, setMe] = useState<Player | null>(null);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -155,39 +152,25 @@ export default function SubmitScorePage() {
     }
   };
 
-  if (!isLoaded || loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-[#0a0a0a]">
-        <div className="w-8 h-8 border-2 border-[#FFB81C] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  const firstName  = user?.firstName ?? '';
-  const lastName   = user?.lastName  ?? '';
-  const initials   = `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
-  const displayName = me ? fullName(me) : `${firstName} ${lastName}`.trim() || 'Player';
+  const displayName = me ? fullName(me) : undefined;
 
   return (
-    <div className="flex h-screen bg-[#f5f4f0] overflow-hidden">
-      <Sidebar
-        playerName={displayName}
-        playerInitials={initials}
-        playerRole="Active Player"
-        onSignOut={() => signOut(() => router.push('/'))}
-      />
-
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between flex-shrink-0 shadow-sm">
-          <div className="ml-14 md:ml-0">
-            <h1 className="text-xl font-bold text-[#0a0a0a]">Submit Score</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Submit a match result for admin approval.</p>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
-
+    <DashboardShell
+      title="Submit Score"
+      subtitle="Submit a match result for admin approval."
+      loading={!isLoaded || loading}
+      displayName={displayName}
+      roleLabel="Active Player"
+      width="narrow"
+      headerRight={
+        me ? (
+          <Chip className="bg-amber-50 text-amber-700 border-amber-200 font-semibold">
+            <Trophy className="w-3.5 h-3.5" />
+            {me.current_elo} ELO
+          </Chip>
+        ) : undefined
+      }
+    >
             {/* ── Match Type ── */}
             <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-center gap-2 mb-4">
@@ -386,9 +369,6 @@ export default function SubmitScorePage() {
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Swords className="h-4 w-4" />}
               Submit Match
             </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    </DashboardShell>
   );
 }

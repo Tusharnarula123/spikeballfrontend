@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useUser, useClerk } from '@clerk/nextjs';
+import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import { Sidebar } from '@/components/ui/modern-side-bar';
+import { DashboardShell, EmptyState, Chip } from '@/components/ui/dashboard-shell';
 import {
   ClipboardCheck, Check, X, AlertTriangle, Pencil, Loader2, Trophy, Calendar,
 } from 'lucide-react';
@@ -42,7 +42,6 @@ const playerName = (p: PlayerRef) => `${p.first_name} ${p.last_name}`;
 
 export default function AdminApprovalsPage() {
   const { user, isLoaded } = useUser();
-  const { signOut } = useClerk();
   const router = useRouter();
 
   const [matches, setMatches] = useState<PendingMatch[]>([]);
@@ -181,58 +180,29 @@ export default function AdminApprovalsPage() {
     }
   };
 
-  if (!isLoaded || (isLoaded && !isAdmin)) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-[#0a0a0a]">
-        <div className="w-8 h-8 border-2 border-[#FFB81C] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  const firstName  = user?.firstName ?? '';
-  const lastName   = user?.lastName  ?? '';
-  const initials   = `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
-  const displayName = `${firstName} ${lastName}`.trim() || 'Admin';
+  if (isLoaded && !isAdmin) return null;
 
   return (
-    <div className="flex h-screen bg-[#f5f4f0] overflow-hidden">
-      <Sidebar
-        playerName={displayName}
-        playerInitials={initials}
-        playerRole="Admin"
-        onSignOut={() => signOut(() => router.push('/'))}
-      />
+    <DashboardShell
+      title="Approve Scores"
+      subtitle="Review pending match submissions and approve, edit, or dispute results."
+      loading={!isLoaded || loading}
+      headerRight={
+        <Chip className="bg-amber-50 text-amber-700 border-amber-200 font-semibold">
+          <ClipboardCheck className="w-3.5 h-3.5" />
+          {matches.length} pending
+        </Chip>
+      }
+    >
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3">
+          {error}
+        </div>
+      )}
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between flex-shrink-0 shadow-sm">
-          <div className="ml-14 md:ml-0">
-            <h1 className="text-xl font-bold text-[#0a0a0a]">Approve Scores</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Review pending match submissions and approve, edit, or dispute results.</p>
-          </div>
-          <span className="hidden sm:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-            <ClipboardCheck className="w-3.5 h-3.5" />
-            {matches.length} pending
-          </span>
-        </header>
-
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-6 py-8 space-y-4">
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3">
-                {error}
-              </div>
-            )}
-
-            {loading ? (
-              <div className="px-4 py-16 text-center">
-                <div className="w-6 h-6 border-2 border-[#FFB81C] border-t-transparent rounded-full animate-spin mx-auto" />
-              </div>
-            ) : matches.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
-                <ClipboardCheck className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-400">No pending scores to review.</p>
-              </div>
+      <div className="space-y-4">
+            {matches.length === 0 ? (
+              <EmptyState icon={<ClipboardCheck />} message="No pending scores to review — you're all caught up." />
             ) : (
               matches.map(m => {
                 const isEditing = editingId === m.id;
@@ -420,9 +390,7 @@ export default function AdminApprovalsPage() {
                 );
               })
             )}
-          </div>
-        </div>
       </div>
-    </div>
+    </DashboardShell>
   );
 }

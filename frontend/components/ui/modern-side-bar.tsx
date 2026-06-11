@@ -14,6 +14,8 @@ import {
   ChevronRight,
   Trophy,
   ClipboardCheck,
+  Users,
+  CalendarRange,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -37,8 +39,10 @@ const navigationItems: NavigationItem[] = [
 ];
 
 const adminNavigationItems: NavigationItem[] = [
-  { id: 'admin-tournaments', name: 'Create Tournament', icon: Trophy,          href: '/dashboard/admin/tournaments' },
-  { id: 'admin-approvals',   name: 'Approve Scores',    icon: ClipboardCheck,  href: '/dashboard/admin/approvals' },
+  { id: 'admin-members',     name: 'Members',      icon: Users,           href: '/dashboard/admin/members' },
+  { id: 'admin-approvals',   name: 'Approve Scores', icon: ClipboardCheck, href: '/dashboard/admin/approvals' },
+  { id: 'admin-tournaments', name: 'Tournaments',  icon: Trophy,          href: '/dashboard/admin/tournaments' },
+  { id: 'admin-seasons',     name: 'Seasons',      icon: CalendarRange,   href: '/dashboard/admin/seasons' },
 ];
 
 interface SidebarProps {
@@ -61,7 +65,6 @@ export function Sidebar({
   const pathname = usePathname();
   const { user } = useUser();
   const isAdmin = user?.publicMetadata?.role === 'admin';
-  const items = isAdmin ? [...navigationItems, ...adminNavigationItems] : navigationItems;
 
   useEffect(() => {
     const handleResize = () => {
@@ -79,6 +82,46 @@ export function Sidebar({
   const closeMobile = () => {
     if (window.innerWidth < 768) setIsOpen(false);
   };
+
+  const renderNavGroup = (group: NavigationItem[]) => (
+    <ul className="space-y-1">
+      {group.map((item) => {
+        const Icon = item.icon;
+        const isActive =
+          pathname === item.href ||
+          (item.href !== '/dashboard' && pathname.startsWith(item.href));
+        return (
+          <li key={item.id}>
+            <Link
+              href={item.href}
+              onClick={closeMobile}
+              title={isCollapsed ? item.name : undefined}
+              className={`
+                flex items-center rounded-lg transition-all duration-200 group relative
+                ${isCollapsed ? 'justify-center p-3' : 'gap-3 px-3 py-2.5'}
+                ${isActive
+                  ? 'bg-[#FFB81C] text-[#0a0a0a] shadow-[0_0_18px_rgba(255,184,28,0.25)]'
+                  : 'text-white/60 hover:bg-white/10 hover:text-white'}
+              `}
+            >
+              <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-[#0a0a0a]' : ''}`} />
+              {!isCollapsed && (
+                <span className={`text-sm ${isActive ? 'font-semibold' : 'font-normal'}`}>
+                  {item.name}
+                </span>
+              )}
+              {/* Tooltip when collapsed */}
+              {isCollapsed && (
+                <div className="absolute left-full ml-2 px-2 py-1 bg-[#1a1a1a] text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 border border-white/10">
+                  {item.name}
+                </div>
+              )}
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
 
   return (
     <>
@@ -142,43 +185,19 @@ export function Sidebar({
 
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 overflow-y-auto">
-          <ul className="space-y-1">
-            {items.map((item) => {
-              const Icon = item.icon;
-              const isActive =
-                pathname === item.href ||
-                (item.href !== '/dashboard' && pathname.startsWith(item.href));
-              return (
-                <li key={item.id}>
-                  <Link
-                    href={item.href}
-                    onClick={closeMobile}
-                    title={isCollapsed ? item.name : undefined}
-                    className={`
-                      flex items-center rounded-lg transition-all duration-200 group relative
-                      ${isCollapsed ? 'justify-center p-3' : 'gap-3 px-3 py-2.5'}
-                      ${isActive
-                        ? 'bg-[#FFB81C] text-[#0a0a0a]'
-                        : 'text-white/60 hover:bg-white/10 hover:text-white'}
-                    `}
-                  >
-                    <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-[#0a0a0a]' : ''}`} />
-                    {!isCollapsed && (
-                      <span className={`text-sm ${isActive ? 'font-semibold' : 'font-normal'}`}>
-                        {item.name}
-                      </span>
-                    )}
-                    {/* Tooltip when collapsed */}
-                    {isCollapsed && (
-                      <div className="absolute left-full ml-2 px-2 py-1 bg-[#1a1a1a] text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 border border-white/10">
-                        {item.name}
-                      </div>
-                    )}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          {renderNavGroup(navigationItems)}
+          {isAdmin && (
+            <>
+              {isCollapsed ? (
+                <div className="my-3 mx-2 border-t border-[#FFB81C]/20" />
+              ) : (
+                <p className="px-3 mt-5 mb-2 text-[10px] font-bold tracking-[0.18em] uppercase text-[#FFB81C]/60">
+                  Admin
+                </p>
+              )}
+              {renderNavGroup(adminNavigationItems)}
+            </>
+          )}
         </nav>
 
         {/* Player profile + sign out */}

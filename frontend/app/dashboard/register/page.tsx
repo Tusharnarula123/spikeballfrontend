@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useUser, useClerk } from '@clerk/nextjs';
-import { useRouter } from 'next/navigation';
-import { Sidebar } from '@/components/ui/modern-side-bar';
+import { useUser } from '@clerk/nextjs';
+import { DashboardShell, SectionHeading, Card, EmptyState, Chip } from '@/components/ui/dashboard-shell';
 import {
   UserPlus, Trophy, Calendar, Users, Shuffle, Loader2, Check, X, Zap, GraduationCap,
 } from 'lucide-react';
@@ -61,9 +60,7 @@ const STATUS_STYLES: Record<Tournament['status'], string> = {
 };
 
 export default function RegisterPage() {
-  const { user, isLoaded } = useUser();
-  const { signOut } = useClerk();
-  const router = useRouter();
+  const { isLoaded } = useUser();
 
   const [player, setPlayer] = useState<Player | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -141,47 +138,28 @@ export default function RegisterPage() {
     }
   };
 
-  if (!isLoaded || loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-[#0a0a0a]">
-        <div className="w-8 h-8 border-2 border-[#FFB81C] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  const firstName  = user?.firstName ?? '';
-  const lastName   = user?.lastName  ?? '';
-  const initials   = `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
-  const displayName = player ? `${player.first_name} ${player.last_name}` : `${firstName} ${lastName}`.trim() || 'Player';
-
   const myRegMap = new Map(myRegs.map(r => [r.tournament.id, r]));
+  const displayName = player ? `${player.first_name} ${player.last_name}` : undefined;
 
   return (
-    <div className="flex h-screen bg-[#f5f4f0] overflow-hidden">
-      <Sidebar
-        playerName={displayName}
-        playerInitials={initials}
-        playerRole={player?.status === 'active' ? 'Active Player' : 'Pending Approval'}
-        onSignOut={() => signOut(() => router.push('/'))}
-      />
-
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between flex-shrink-0 shadow-sm">
-          <div className="ml-14 md:ml-0">
-            <h1 className="text-xl font-bold text-[#0a0a0a]">Register for a Match</h1>
-            <p className="text-sm text-gray-400 mt-0.5">View your profile info and sign up for open tournaments.</p>
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
-
+    <DashboardShell
+      title="Register for a Match"
+      subtitle="View your profile info and sign up for open tournaments."
+      loading={!isLoaded || loading}
+      displayName={displayName}
+      roleLabel={player?.status === 'active' ? 'Active Player' : 'Pending Approval'}
+      headerRight={
+        myRegs.length > 0 ? (
+          <Chip className="bg-green-50 text-green-700 border-green-200 font-semibold">
+            <Check className="w-3.5 h-3.5" />
+            {myRegs.length} registered
+          </Chip>
+        ) : undefined
+      }
+    >
             {/* ── Player Info ── */}
-            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <UserPlus className="w-5 h-5 text-[#FFB81C]" />
-                <h2 className="text-lg font-bold text-gray-900">Your Info</h2>
-              </div>
+            <Card className="p-5">
+              <SectionHeading icon={<UserPlus />} title="Your Info" />
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 <InfoStat label="Name" value={`${player?.first_name ?? ''} ${player?.last_name ?? ''}`.trim() || '—'} />
                 <InfoStat label="School" value={player?.university || '—'} icon={<GraduationCap className="w-3.5 h-3.5" />} />
@@ -189,7 +167,7 @@ export default function RegisterPage() {
                 <InfoStat label="Gender" value={player?.gender ? player.gender.charAt(0).toUpperCase() + player.gender.slice(1) : '—'} />
                 <InfoStat label="ELO" value={player?.current_elo ?? '—'} gold icon={<Zap className="w-3.5 h-3.5" />} />
               </div>
-            </section>
+            </Card>
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-xl px-4 py-3">
@@ -199,15 +177,10 @@ export default function RegisterPage() {
 
             {/* ── Open Tournaments ── */}
             <section>
-              <div className="flex items-center gap-2 mb-4">
-                <Trophy className="w-5 h-5 text-[#FFB81C]" />
-                <h2 className="text-lg font-bold text-[#0a0a0a]">Tournaments</h2>
-              </div>
+              <SectionHeading icon={<Trophy />} title="Tournaments" />
 
               {tournaments.length === 0 ? (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center text-sm text-gray-400">
-                  No tournaments are open right now. Check back soon!
-                </div>
+                <EmptyState icon={<Trophy />} message="No tournaments are open right now — check back soon!" />
               ) : (
                 <div className="space-y-4">
                   {tournaments.map(t => {
@@ -319,10 +292,7 @@ export default function RegisterPage() {
                 </div>
               )}
             </section>
-          </div>
-        </div>
-      </div>
-    </div>
+    </DashboardShell>
   );
 }
 

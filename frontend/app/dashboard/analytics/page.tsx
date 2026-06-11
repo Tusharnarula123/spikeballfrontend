@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useUser, useClerk } from '@clerk/nextjs';
-import { useRouter } from 'next/navigation';
-import { Sidebar } from '@/components/ui/modern-side-bar';
+import { useUser } from '@clerk/nextjs';
+import { DashboardShell } from '@/components/ui/dashboard-shell';
 import { EloLineChart } from '@/components/ui/elo-line-chart';
 import { WinLossDonut } from '@/components/ui/win-loss-donut';
 import { TrendingUp, TrendingDown, Users, BarChart3 } from 'lucide-react';
@@ -50,9 +49,7 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string 
 }
 
 export default function AnalyticsPage() {
-  const { user, isLoaded } = useUser();
-  const { signOut } = useClerk();
-  const router = useRouter();
+  const { isLoaded } = useUser();
 
   const [matches, setMatches]       = useState<MatchEntry[]>([]);
   const [eloHistory, setEloHistory] = useState<EloPoint[]>([]);
@@ -159,46 +156,13 @@ export default function AnalyticsPage() {
 
   const selectedTeammate = teammates.find((t) => t.id === teammateId);
 
-  const firstName  = user?.firstName ?? '';
-  const lastName   = user?.lastName  ?? '';
-  const initials   = `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
-  const displayName = `${firstName} ${lastName}`.trim() || 'Player';
-
-  if (!isLoaded) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-[#0a0a0a]">
-        <div className="w-8 h-8 border-2 border-[#FFB81C] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   return (
-    <div className="flex h-screen bg-[#f5f4f0] overflow-hidden">
-      <Sidebar
-        playerName={displayName}
-        playerInitials={initials}
-        playerRole="Player"
-        onSignOut={() => signOut(() => router.push('/'))}
-      />
-
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between flex-shrink-0 shadow-sm">
-          <div className="ml-14 md:ml-0">
-            <h1 className="text-xl font-bold text-[#0a0a0a]">Analytics</h1>
-            <p className="text-sm text-gray-400 mt-0.5">Your ELO progression and match performance.</p>
-          </div>
-        </header>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-5xl mx-auto px-6 py-8 space-y-6">
-
-            {loading ? (
-              <div className="px-4 py-24 text-center">
-                <div className="w-6 h-6 border-2 border-[#FFB81C] border-t-transparent rounded-full animate-spin mx-auto" />
-              </div>
-            ) : (
+    <DashboardShell
+      title="Analytics"
+      subtitle="Your ELO progression and match performance."
+      loading={!isLoaded || loading}
+      width="wide"
+    >
               <>
                 {/* Filters */}
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -351,10 +315,6 @@ export default function AnalyticsPage() {
                   </div>
                 </div>
               </>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+    </DashboardShell>
   );
 }

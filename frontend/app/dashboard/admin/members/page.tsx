@@ -8,6 +8,8 @@ import {
   Users, UserCheck, Search, Loader2, Check, X, Award, Clock,
   GraduationCap, Zap, ShieldOff, RotateCcw, Medal,
 } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
+import { useApi } from '@/hooks/use-api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -42,6 +44,7 @@ const fullName = (m: Member) => `${m.first_name} ${m.last_name}`;
 export default function AdminMembersPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
+  const { fetchApi, isLoaded: authLoaded } = useApi();
 
   const [members, setMembers] = useState<Member[]>([]);
   const [badges, setBadges] = useState<Badge[]>([]);
@@ -60,12 +63,12 @@ export default function AdminMembersPage() {
   const isAdmin = user?.publicMetadata?.role === 'admin';
 
   const refresh = async () => {
-    const res = await fetch('/api/players?status=all');
+    const res = await fetchApi('/api/players?status=all');
     if (res.ok) setMembers(await res.json());
   };
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !authLoaded) return;
     if (!isAdmin) {
       router.replace('/dashboard');
       return;
@@ -74,7 +77,7 @@ export default function AdminMembersPage() {
       try {
         const [, bRes] = await Promise.all([
           refresh(),
-          fetch('/api/badges'),
+          apiFetch('/api/badges'),
         ]);
         if (bRes.ok) setBadges(await bRes.json());
       } finally {
@@ -82,13 +85,13 @@ export default function AdminMembersPage() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isAdmin, router]);
+  }, [isLoaded, authLoaded, isAdmin, router]);
 
   const setStatus = async (id: string, action: 'approve' | 'suspend') => {
     setBusyId(id);
     setError(null);
     try {
-      const res = await fetch(`/api/players/${id}/${action}`, { method: 'PATCH' });
+      const res = await fetchApi(`/api/players/${id}/${action}`, { method: 'PATCH' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data.error ?? `Failed to ${action} player`);
@@ -106,9 +109,8 @@ export default function AdminMembersPage() {
     setAwarding(true);
     setAwardMsg(null);
     try {
-      const res = await fetch('/api/badges/award', {
+      const res = await fetchApi('/api/badges/award', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: badgeTarget.id, badgeId: selectedBadgeId }),
       });
       const data = await res.json().catch(() => ({}));

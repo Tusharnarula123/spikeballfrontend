@@ -30,19 +30,20 @@ interface NavigationItem {
 }
 
 const navigationItems: NavigationItem[] = [
-  { id: 'dashboard',  name: 'Dashboard',      icon: Home,     href: '/dashboard' },
-  { id: 'profile',    name: 'My Profile',      icon: User,     href: '/dashboard/profile' },
-  { id: 'history',    name: 'Match History',   icon: History,  href: '/dashboard/history' },
-  { id: 'analytics',  name: 'Analytics',       icon: BarChart3, href: '/dashboard/analytics' },
-  { id: 'submit',     name: 'Submit Score',    icon: Swords,   href: '/dashboard/submit' },
-  { id: 'register',   name: 'Register Match',  icon: UserPlus, href: '/dashboard/register' },
+  { id: 'dashboard',   name: 'Dashboard',     icon: Home,      href: '/dashboard' },
+  { id: 'profile',     name: 'My Profile',    icon: User,      href: '/dashboard/profile' },
+  { id: 'history',     name: 'Match History', icon: History,   href: '/dashboard/history' },
+  { id: 'analytics',   name: 'Analytics',     icon: BarChart3, href: '/dashboard/analytics' },
+  { id: 'submit',      name: 'Submit Score',  icon: Swords,    href: '/dashboard/submit' },
+  { id: 'tournaments', name: 'Tournaments',   icon: Trophy,    href: '/dashboard/tournaments' },
+  { id: 'register',    name: 'Register',      icon: UserPlus,  href: '/dashboard/register' },
 ];
 
 const adminNavigationItems: NavigationItem[] = [
-  { id: 'admin-members',     name: 'Members',      icon: Users,           href: '/dashboard/admin/members' },
-  { id: 'admin-approvals',   name: 'Approve Scores', icon: ClipboardCheck, href: '/dashboard/admin/approvals' },
-  { id: 'admin-tournaments', name: 'Tournaments',  icon: Trophy,          href: '/dashboard/admin/tournaments' },
-  { id: 'admin-seasons',     name: 'Seasons',      icon: CalendarRange,   href: '/dashboard/admin/seasons' },
+  { id: 'admin-members',     name: 'Members',        icon: Users,         href: '/dashboard/admin/members' },
+  { id: 'admin-approvals',   name: 'Approve Scores', icon: ClipboardCheck,href: '/dashboard/admin/approvals' },
+  { id: 'admin-tournaments', name: 'Tournaments',    icon: Trophy,        href: '/dashboard/admin/tournaments' },
+  { id: 'admin-seasons',     name: 'Seasons',        icon: CalendarRange, href: '/dashboard/admin/seasons' },
 ];
 
 interface SidebarProps {
@@ -67,21 +68,13 @@ export function Sidebar({
   const isAdmin = user?.publicMetadata?.role === 'admin';
 
   useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 768) {
-        setIsOpen(true);
-      } else {
-        setIsOpen(false);
-      }
-    };
+    const handleResize = () => setIsOpen(window.innerWidth >= 768);
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const closeMobile = () => {
-    if (window.innerWidth < 768) setIsOpen(false);
-  };
+  const closeMobile = () => { if (window.innerWidth < 768) setIsOpen(false); };
 
   const renderNavGroup = (group: NavigationItem[]) => (
     <ul className="space-y-1">
@@ -110,7 +103,6 @@ export function Sidebar({
                   {item.name}
                 </span>
               )}
-              {/* Tooltip when collapsed */}
               {isCollapsed && (
                 <div className="absolute left-full ml-2 px-2 py-1 bg-[#1a1a1a] text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 border border-white/10">
                   {item.name}
@@ -125,23 +117,18 @@ export function Sidebar({
 
   return (
     <>
-      {/* Mobile hamburger — fixed top-left */}
+      {/* Mobile hamburger */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="fixed top-5 left-5 z-50 p-2.5 rounded-lg bg-[#0a0a0a] shadow-lg md:hidden"
         aria-label="Toggle sidebar"
       >
-        {isOpen
-          ? <X    className="h-5 w-5 text-[#FFB81C]" />
-          : <Menu className="h-5 w-5 text-[#FFB81C]" />}
+        {isOpen ? <X className="h-5 w-5 text-[#FFB81C]" /> : <Menu className="h-5 w-5 text-[#FFB81C]" />}
       </button>
 
       {/* Mobile backdrop */}
       {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/60 z-30 md:hidden"
-          onClick={() => setIsOpen(false)}
-        />
+        <div className="fixed inset-0 bg-black/60 z-30 md:hidden" onClick={() => setIsOpen(false)} />
       )}
 
       {/* Sidebar panel */}
@@ -156,26 +143,25 @@ export function Sidebar({
         `}
       >
         {/* Logo / brand */}
-        <div className="flex items-center justify-between p-4 border-b border-[#FFB81C]/20 flex-shrink-0">
+        <div className="flex items-center p-4 border-b border-[#FFB81C]/20 flex-shrink-0 gap-2">
           {isCollapsed ? (
             <div className="w-9 h-9 flex items-center justify-center mx-auto">
               <Image src="/logo.svg" alt="OU Roundnet" width={36} height={36} />
             </div>
           ) : (
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 flex-1 min-w-0">
               <div className="w-9 h-9 flex-shrink-0">
                 <Image src="/logo.svg" alt="OU Roundnet" width={36} height={36} />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-white font-semibold text-sm leading-none">OU Roundnet</p>
                 <p className="text-[#FFB81C]/50 text-xs mt-0.5">Club Portal</p>
               </div>
             </div>
           )}
-          {/* Desktop collapse toggle */}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="hidden md:flex p-1.5 rounded-md hover:bg-white/10 transition-colors ml-auto"
+            className="hidden md:flex p-1.5 rounded-md hover:bg-white/10 transition-colors ml-auto flex-shrink-0"
           >
             {isCollapsed
               ? <ChevronRight className="h-4 w-4 text-white/40" />
@@ -188,13 +174,9 @@ export function Sidebar({
           {renderNavGroup(navigationItems)}
           {isAdmin && (
             <>
-              {isCollapsed ? (
-                <div className="my-3 mx-2 border-t border-[#FFB81C]/20" />
-              ) : (
-                <p className="px-3 mt-5 mb-2 text-[10px] font-bold tracking-[0.18em] uppercase text-[#FFB81C]/60">
-                  Admin
-                </p>
-              )}
+              {isCollapsed
+                ? <div className="my-3 mx-2 border-t border-[#FFB81C]/20" />
+                : <p className="px-3 mt-5 mb-2 text-[10px] font-bold tracking-[0.18em] uppercase text-[#FFB81C]/60">Admin</p>}
               {renderNavGroup(adminNavigationItems)}
             </>
           )}
@@ -232,7 +214,7 @@ export function Sidebar({
                 ${isCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'}
               `}
             >
-              <LogOut className="h-4.5 w-4.5 flex-shrink-0" />
+              <LogOut className="h-5 w-5 flex-shrink-0" />
               {!isCollapsed && <span className="text-sm">Sign Out</span>}
               {isCollapsed && (
                 <div className="absolute left-full ml-2 px-2 py-1 bg-[#1a1a1a] text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 whitespace-nowrap z-50 border border-white/10">

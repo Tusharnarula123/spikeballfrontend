@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, getPlayerByClerkId, getActiveSeason, err } from '@/lib/api-helpers';
+import { sendNotificationEmail } from '@/lib/mail';
 import { supabase } from '@/lib/supabase';
 
 // GET /api/matches?playerId=&seasonId=&status=
@@ -91,5 +92,51 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) return err(error.message);
+
+  // Notify all other 3 players that a score was submitted
+  const { data: playerRows } = await supabase
+    .from('players')
+    .select('id, first_name, last_name, email')
+    .in('id', playerIds);
+
+  const nameMap  = new Map((playerRows ?? []).map((p) => [p.id, `${p.first_name} ${p.last_name}`]));
+  const emailMap = new Map((playerRows ?? []).map((p) => [p.id, p.email as string]));
+  const submitterName = nameMap.get(player.id) ?? 'A player';
+  const matchLink = tournamentId ? `/dashboard/tournaments/${tournamentId}` : '/dashboard/history';
+  const tourneySuffix = tournamentId ? ' (tournament match)' : '';
+
+  const notifInserts = playerIds
+    .filter((pid) => pid !== player.id)
+    .map((pid) => ({
+      player_id: pid,
+      type: 'match_submitted',
+      title: `Match score submitted${tourneySuffix}`,
+      body: `${submitterName} submitted a match result that includes you. An admin will review and approve it shortly.`,
+      link: matchLink,
+    }));
+
+  const mailBatch = playerIds
+    .filter((pid) => pid !== player.id)
+    .map((pid) => {
+      const email = emailMap.get(pid);
+      if (!email) return null;
+      return sendNotificationEmail({
+        to: email,
+        subject: `Match score submitted — ${submitterName}`,
+        title: `Match score submitted${tourneySuffix}`,
+        body: `${submitterName} submitted a match result that includes you. An admin will review and approve it shortly.`,
+        link: matchLink,
+        linkLabel: 'View Match',
+      });
+    })
+    .filter(Boolean) as Promise<void>[];
+
+  await Promise.allSettled([
+    notifInserts.length > 0
+      ? supabase.from('notifications').insert(notifInserts)
+      : Promise.resolve(),
+    ...mailBatch,
+  ]);
+
   return NextResponse.json(data, { status: 201 });
 }

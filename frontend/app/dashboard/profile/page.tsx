@@ -4,7 +4,9 @@ import { useUser } from '@clerk/nextjs';
 import { Sidebar } from '@/components/ui/modern-side-bar';
 import { useClerk } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import { Trophy, Swords, Star, TrendingUp, User, ShieldCheck } from 'lucide-react';
+import { Trophy, Swords, Star, TrendingUp, User, ShieldCheck, Pencil, X, Check, Loader2 } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
+import { useApi } from '@/hooks/use-api';
 
 interface Player {
   id: string;
@@ -71,8 +73,203 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
+const GENDER_OPTIONS = [
+  { value: 'male',              label: 'Male' },
+  { value: 'female',            label: 'Female' },
+  { value: 'non_binary',        label: 'Non-binary' },
+  { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+];
+
+function genderLabel(g?: string) {
+  if (!g) return '—';
+  return GENDER_OPTIONS.find(o => o.value === g)?.label ?? (g.charAt(0).toUpperCase() + g.slice(1));
+}
+
+interface EditForm {
+  firstName:  string;
+  lastName:   string;
+  age:        string;
+  gender:     string;
+  university: string;
+  bio:        string;
+}
+
+interface EditModalProps {
+  player: Player;
+  onClose: () => void;
+  onSaved: (updated: Player) => void;
+  fetchApi: (url: string, opts?: RequestInit) => Promise<Response>;
+}
+
+function EditModal({ player, onClose, onSaved, fetchApi }: EditModalProps) {
+  const [form, setForm] = useState<EditForm>({
+    firstName:  player.first_name,
+    lastName:   player.last_name,
+    age:        player.age ? String(player.age) : '',
+    gender:     player.gender ?? '',
+    university: player.university ?? '',
+    bio:        player.bio ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState<string | null>(null);
+
+  const set = (key: keyof EditForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    setForm(f => ({ ...f, [key]: e.target.value }));
+
+  const handleSave = async () => {
+    setError(null);
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        firstName:  form.firstName.trim(),
+        lastName:   form.lastName.trim(),
+        university: form.university.trim(),
+        bio:        form.bio.trim(),
+        gender:     form.gender || undefined,
+      };
+      if (form.age !== '') body.age = Number(form.age);
+
+      const res = await fetchApi('/api/players/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error ?? data?.message ?? 'Failed to save changes');
+        return;
+      }
+
+      const updated: Player = await res.json();
+      onSaved(updated);
+      onClose();
+    } catch {
+      setError('Network error — please try again');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* backdrop */}
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+
+      <div className="relative z-10 w-full max-w-lg bg-[#111] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+          <h2 className="text-white font-bold text-lg">Edit Profile</h2>
+          <button onClick={onClose} className="text-white/40 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/5">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Form */}
+        <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto">
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3 text-red-400 text-sm">
+              {error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-white/40 text-xs uppercase tracking-widest block mb-1.5">First Name</label>
+              <input
+                value={form.firstName}
+                onChange={set('firstName')}
+                placeholder="First name"
+                className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-[#FFB81C]/60 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="text-white/40 text-xs uppercase tracking-widest block mb-1.5">Last Name</label>
+              <input
+                value={form.lastName}
+                onChange={set('lastName')}
+                placeholder="Last name"
+                className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-[#FFB81C]/60 transition-colors"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-white/40 text-xs uppercase tracking-widest block mb-1.5">Age</label>
+              <input
+                type="number"
+                min={16}
+                max={99}
+                value={form.age}
+                onChange={set('age')}
+                placeholder="—"
+                className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-[#FFB81C]/60 transition-colors"
+              />
+            </div>
+            <div>
+              <label className="text-white/40 text-xs uppercase tracking-widest block mb-1.5">Gender</label>
+              <select
+                value={form.gender}
+                onChange={set('gender')}
+                className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-[#FFB81C]/60 transition-colors appearance-none"
+              >
+                <option value="">—</option>
+                {GENDER_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-white/40 text-xs uppercase tracking-widest block mb-1.5">University / School</label>
+            <input
+              value={form.university}
+              onChange={set('university')}
+              placeholder="Oakland University"
+              className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-[#FFB81C]/60 transition-colors"
+            />
+          </div>
+
+          <div>
+            <label className="text-white/40 text-xs uppercase tracking-widest block mb-1.5">Bio</label>
+            <textarea
+              value={form.bio}
+              onChange={set('bio')}
+              rows={3}
+              placeholder="Tell your team a bit about yourself…"
+              className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2.5 text-white text-sm placeholder-white/20 focus:outline-none focus:border-[#FFB81C]/60 transition-colors resize-none"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/10">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="px-4 py-2 text-sm text-white/50 hover:text-white transition-colors rounded-lg hover:bg-white/5 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-2 px-5 py-2 bg-[#FFB81C] hover:bg-[#e6a619] text-black font-semibold text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
-  const { user, isLoaded } = useUser();
+  const { user, isLoaded: userLoaded } = useUser();
+  const { fetchApi, isLoaded: authLoaded } = useApi();
   const { signOut } = useClerk();
   const router = useRouter();
 
@@ -80,21 +277,20 @@ export default function ProfilePage() {
   const [seasonStats, setSeasonStats] = useState<SeasonStats | null>(null);
   const [alltime, setAlltime]         = useState<AlltimeStats | null>(null);
   const [loading, setLoading]         = useState(true);
+  const [editOpen, setEditOpen]       = useState(false);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!userLoaded || !authLoaded) return;
 
     const load = async () => {
       try {
-        // Always fetch player first — everything else needs the player id
-        const playerRes = await fetch('/api/players/me');
+        const playerRes = await fetchApi('/api/players/me');
         const playerData: Player | null = playerRes.ok ? await playerRes.json() : null;
         if (playerData) setPlayer(playerData);
 
-        // Fetch season stats + all-time in parallel (even if playerData is null — they'll return empty gracefully)
         const [lbRes, atRes] = await Promise.all([
-          fetch('/api/leaderboard'),
-          fetch('/api/players/me/alltime'),
+          apiFetch('/api/leaderboard'),
+          fetchApi('/api/players/me/alltime'),
         ]);
 
         if (lbRes.ok && playerData) {
@@ -108,21 +304,21 @@ export default function ProfilePage() {
           setAlltime(atData);
         }
       } catch {
-        // silently fail — page still renders with whatever loaded
+        // silently fail
       } finally {
         setLoading(false);
       }
     };
 
     load();
-  }, [isLoaded]);
+  }, [userLoaded, authLoaded, fetchApi]);
 
   const handleSignOut = async () => {
     await signOut();
     router.push('/');
   };
 
-  if (!isLoaded || loading) {
+  if (!userLoaded || loading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-[#FFB81C] border-t-transparent rounded-full animate-spin" />
@@ -130,11 +326,11 @@ export default function ProfilePage() {
     );
   }
 
-  const firstName   = user?.firstName ?? '';
-  const lastName    = user?.lastName  ?? '';
+  const firstName   = player?.first_name ?? user?.firstName ?? '';
+  const lastName    = player?.last_name  ?? user?.lastName  ?? '';
   const initials    = `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
-  const fullName    = player ? `${player.first_name} ${player.last_name}` : `${firstName} ${lastName}`;
-  const gender      = player?.gender ? (player.gender.charAt(0).toUpperCase() + player.gender.slice(1)) : '—';
+  const fullName    = `${firstName} ${lastName}`.trim();
+  const gender      = genderLabel(player?.gender);
   const age         = player?.age ?? '—';
   const university  = player?.university ?? 'Oakland University';
   const memberSince = player?.created_at
@@ -142,14 +338,12 @@ export default function ProfilePage() {
     : '—';
   const currentElo  = player?.current_elo ?? 1200;
 
-  // Season stats
   const sWins       = seasonStats?.wins   ?? 0;
   const sLosses     = seasonStats?.losses ?? 0;
   const sMatches    = seasonStats?.total_matches ?? (sWins + sLosses);
   const sWinPct     = sMatches > 0 ? ((sWins / sMatches) * 100).toFixed(1) : '0.0';
   const sRank       = seasonStats?.rank ?? '—';
 
-  // All-time stats
   const aWins       = alltime?.totalWins   ?? 0;
   const aLosses     = alltime?.totalLosses ?? 0;
   const aMatches    = alltime?.totalMatches ?? 0;
@@ -160,11 +354,11 @@ export default function ProfilePage() {
   const badges = player?.player_badges ?? [];
 
   const badgeIcons: Record<string, React.ReactNode> = {
-    trophy:     <Trophy className="w-4 h-4" />,
-    swords:     <Swords className="w-4 h-4" />,
-    star:       <Star className="w-4 h-4" />,
-    trending:   <TrendingUp className="w-4 h-4" />,
-    shield:     <ShieldCheck className="w-4 h-4" />,
+    trophy:   <Trophy className="w-4 h-4" />,
+    swords:   <Swords className="w-4 h-4" />,
+    star:     <Star className="w-4 h-4" />,
+    trending: <TrendingUp className="w-4 h-4" />,
+    shield:   <ShieldCheck className="w-4 h-4" />,
   };
 
   return (
@@ -184,7 +378,7 @@ export default function ProfilePage() {
           <div className="w-20 h-20 rounded-full bg-[#FFB81C] flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#FFB81C]/20">
             <span className="text-[#0a0a0a] font-black text-2xl">{initials || <User className="w-8 h-8" />}</span>
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="text-white text-2xl font-bold">{fullName}</h1>
             <p className="text-white/40 text-sm mt-0.5">{player?.email ?? user?.primaryEmailAddress?.emailAddress}</p>
             <span className={`inline-flex items-center gap-1.5 mt-2 px-2.5 py-0.5 rounded-full text-xs font-semibold ${
@@ -196,14 +390,24 @@ export default function ProfilePage() {
               {player?.status === 'active' ? 'Active Player' : 'Pending Approval'}
             </span>
           </div>
+          {/* Edit button */}
+          {player && (
+            <button
+              onClick={() => setEditOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-[#FFB81C]/40 text-white/60 hover:text-white text-sm font-medium rounded-xl transition-all flex-shrink-0"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Edit
+            </button>
+          )}
         </div>
 
         {/* ── Personal info ── */}
         <SectionTitle>Personal Info</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard label="Age"     value={age} />
-          <StatCard label="Gender"  value={gender} />
-          <StatCard label="School"  value={university} />
+          <StatCard label="Age"          value={age} />
+          <StatCard label="Gender"       value={gender} />
+          <StatCard label="School"       value={university} />
           <StatCard label="Member Since" value={memberSince} />
         </div>
 
@@ -234,7 +438,7 @@ export default function ProfilePage() {
         {/* ── All-Time ── */}
         <SectionTitle>All-Time</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <StatCard label="Peak ELO"      value={peakElo}     gold />
+          <StatCard label="Peak ELO"       value={peakElo}     gold />
           <StatCard label="Seasons Played" value={seasonsPlayed} />
           <StatCard label="Record"         value={`${aWins} — ${aLosses}`} sub="Wins — Losses" />
           <StatCard label="Win Rate"       value={`${aWinPct}%`} />
@@ -269,9 +473,18 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Bottom spacer */}
         <div className="h-8" />
       </main>
+
+      {/* Edit modal */}
+      {editOpen && player && (
+        <EditModal
+          player={player}
+          onClose={() => setEditOpen(false)}
+          onSaved={(updated) => setPlayer(updated)}
+          fetchApi={fetchApi}
+        />
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin, err } from '@/lib/api-helpers';
+import { sendNotificationEmail } from '@/lib/mail';
 import { supabase } from '@/lib/supabase';
 
 interface Registration {
@@ -10,11 +11,6 @@ interface Registration {
 }
 
 // POST /api/tournaments/[id]/form-teams — admin: pair registrants into teams
-//
-// For 'self_select' tournaments, mutual preferred-partner pairs are matched
-// first. Everyone else (and everyone in 'random' tournaments) is shuffled
-// and paired sequentially. If an odd number of players remain, the last one
-// is left unpaired (returned as `unpaired`).
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAdmin();
   if (auth instanceof NextResponse) return auth;
@@ -67,12 +63,31 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   }
   if (remaining.length % 2 === 1) unpaired = remaining[remaining.length - 1];
 
-  // 3. Insert teams + update registrations
+  // Fetch player details for notifications
+  const allPlayerIds = pairs.flat();
+  const { data: playerRows } = await supabase
+    .from('players')
+    .select('id, first_name, last_name, email')
+    .in('id', allPlayerIds);
+
+  const playerMap = new Map(
+    (playerRows ?? []).map((p) => [p.id, p as { id: string; first_name: string; last_name: string; email: string }]),
+  );
+
+  // 3. Insert teams + update registrations + notify players
   const teamsCreated = [];
+  const notifInserts: Record<string, unknown>[] = [];
+  const mailPromises: Promise<void>[] = [];
+  const tournamentLink = `/dashboard/tournaments/${tournamentId}`;
+
   for (const [p1, p2] of pairs) {
+    const pA = playerMap.get(p1);
+    const pB = playerMap.get(p2);
+    const teamName = `${pA?.first_name ?? 'Player'} & ${pB?.first_name ?? 'Player'}`;
+
     const { data: team, error: teamError } = await supabase
       .from('tournament_teams')
-      .insert({ tournament_id: tournamentId, player1_id: p1, player2_id: p2 })
+      .insert({ tournament_id: tournamentId, player1_id: p1, player2_id: p2, name: teamName })
       .select()
       .single();
     if (teamError) return err(teamError.message);
@@ -84,7 +99,47 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       .eq('tournament_id', tournamentId);
 
     teamsCreated.push(team);
+
+    // Queue in-app notifications and emails for both players
+    for (const [pid, partnerPid] of [[p1, p2], [p2, p1]]) {
+      const player  = playerMap.get(pid);
+      const partner = playerMap.get(partnerPid);
+      if (!player || !partner) continue;
+
+      const partnerName = `${partner.first_name} ${partner.last_name}`;
+      const title = `You've been teamed up in ${tournament.name}!`;
+      const body  = `You'll be playing with ${partnerName} in ${tournament.name}. Head to the tournament bracket to see your upcoming matches.`;
+
+      notifInserts.push({
+        player_id: pid,
+        type: 'team_assigned',
+        title,
+        body,
+        link: tournamentLink,
+      });
+
+      if (player.email) {
+        mailPromises.push(
+          sendNotificationEmail({
+            to: player.email,
+            subject: `Team assigned — ${tournament.name}`,
+            title,
+            body,
+            link: tournamentLink,
+            linkLabel: 'View Tournament Bracket',
+          }),
+        );
+      }
+    }
   }
+
+  // Fire notifications + emails (best-effort, non-blocking)
+  await Promise.allSettled([
+    notifInserts.length > 0
+      ? supabase.from('notifications').insert(notifInserts)
+      : Promise.resolve(),
+    ...mailPromises,
+  ]);
 
   return NextResponse.json({ teamsCreated, unpaired, pairedCount: pairs.length * 2 });
 }

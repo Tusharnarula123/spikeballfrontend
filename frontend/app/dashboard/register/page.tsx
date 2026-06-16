@@ -6,6 +6,7 @@ import { DashboardShell, SectionHeading, Card, EmptyState, Chip } from '@/compon
 import {
   UserPlus, Trophy, Calendar, Users, Shuffle, Loader2, Check, X, Zap, GraduationCap,
 } from 'lucide-react';
+import { useApi } from '@/hooks/use-api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -60,7 +61,8 @@ const STATUS_STYLES: Record<Tournament['status'], string> = {
 };
 
 export default function RegisterPage() {
-  const { isLoaded } = useUser();
+  const { isLoaded: userLoaded } = useUser();
+  const { fetchApi, isLoaded: authLoaded } = useApi();
 
   const [player, setPlayer] = useState<Player | null>(null);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
@@ -73,21 +75,21 @@ export default function RegisterPage() {
 
   const refresh = async () => {
     const [tRes, mRes] = await Promise.all([
-      fetch('/api/tournaments?status=registration_open,upcoming,in_progress'),
-      fetch('/api/tournaments/me'),
+      fetchApi('/api/tournaments?status=registration_open,upcoming,in_progress'),
+      fetchApi('/api/tournaments/me'),
     ]);
     if (tRes.ok) setTournaments(await tRes.json());
     if (mRes.ok) setMyRegs(await mRes.json());
   };
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!userLoaded || !authLoaded) return;
 
     const load = async () => {
       try {
         const [pRes, opRes] = await Promise.all([
-          fetch('/api/players/me'),
-          fetch('/api/players?excludeSelf=true'),
+          fetchApi('/api/players/me'),
+          fetchApi('/api/players?excludeSelf=true'),
         ]);
         if (pRes.ok) setPlayer(await pRes.json());
         if (opRes.ok) setOtherPlayers(await opRes.json());
@@ -99,16 +101,15 @@ export default function RegisterPage() {
       }
     };
     load();
-  }, [isLoaded]);
+  }, [userLoaded, authLoaded, fetchApi]);
 
   const handleRegister = async (tournamentId: string) => {
     setBusyId(tournamentId);
     setError(null);
     try {
       const preferredPartnerId = partnerChoice[tournamentId];
-      const res = await fetch(`/api/tournaments/${tournamentId}/register`, {
+      const res = await fetchApi(`/api/tournaments/${tournamentId}/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ preferredPartnerId: preferredPartnerId || null }),
       });
       const data = await res.json().catch(() => ({}));
@@ -126,7 +127,7 @@ export default function RegisterPage() {
     setBusyId(tournamentId);
     setError(null);
     try {
-      const res = await fetch(`/api/tournaments/${tournamentId}/register`, { method: 'DELETE' });
+      const res = await fetchApi(`/api/tournaments/${tournamentId}/register`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? 'Failed to unregister');
@@ -145,7 +146,7 @@ export default function RegisterPage() {
     <DashboardShell
       title="Register for a Match"
       subtitle="View your profile info and sign up for open tournaments."
-      loading={!isLoaded || loading}
+      loading={!userLoaded || !authLoaded || loading}
       displayName={displayName}
       roleLabel={player?.status === 'active' ? 'Active Player' : 'Pending Approval'}
       headerRight={

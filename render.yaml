@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: spikeball-ou-backend
+    runtime: node
+    rootDir: backend/my-project
+    buildCommand: npm install && npm run build
+    startCommand: node dist/main
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DEFAULT_ELO
+        value: "1000"
+      - key: CLERK_SECRET_KEY
+        sync: false        # set manually in Render dashboard
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false        # set to your Vercel URL after deploying frontend

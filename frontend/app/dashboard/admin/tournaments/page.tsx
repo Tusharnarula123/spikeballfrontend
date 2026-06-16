@@ -3,10 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { DashboardShell, SectionHeading, EmptyState, Chip } from '@/components/ui/dashboard-shell';
 import {
-  Trophy, Plus, Users, Shuffle, Calendar, Loader2, ChevronDown, ChevronUp,
+  Trophy, Plus, Users, Shuffle, Calendar, Loader2, ChevronDown, ChevronUp, GitBranch,
 } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
+import { useApi } from '@/hooks/use-api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -70,6 +73,7 @@ const emptyForm = {
 export default function AdminTournamentsPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
+  const { fetchApi, isLoaded: authLoaded } = useApi();
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [seasons, setSeasons] = useState<Season[]>([]);
@@ -82,12 +86,13 @@ export default function AdminTournamentsPage() {
   const [registrations, setRegistrations] = useState<RegistrationRow[]>([]);
   const [regsLoading, setRegsLoading] = useState(false);
   const [formTeamsMsg, setFormTeamsMsg] = useState<Record<string, string>>({});
+  const [bracketMsg, setBracketMsg] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const isAdmin = user?.publicMetadata?.role === 'admin';
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !authLoaded) return;
     if (!isAdmin) {
       router.replace('/dashboard');
       return;
@@ -96,8 +101,8 @@ export default function AdminTournamentsPage() {
     const load = async () => {
       try {
         const [tRes, sRes] = await Promise.all([
-          fetch('/api/tournaments'),
-          fetch('/api/seasons'),
+          fetchApi('/api/tournaments'),
+          apiFetch('/api/seasons'),
         ]);
         if (tRes.ok) setTournaments(await tRes.json());
         if (sRes.ok) setSeasons(await sRes.json());
@@ -108,10 +113,10 @@ export default function AdminTournamentsPage() {
       }
     };
     load();
-  }, [isLoaded, isAdmin, router]);
+  }, [isLoaded, authLoaded, isAdmin, router, fetchApi]);
 
   const refreshTournaments = async () => {
-    const res = await fetch('/api/tournaments');
+    const res = await fetchApi('/api/tournaments');
     if (res.ok) setTournaments(await res.json());
   };
 
@@ -123,9 +128,8 @@ export default function AdminTournamentsPage() {
     }
     setCreating(true);
     try {
-      const res = await fetch('/api/tournaments', {
+      const res = await fetchApi('/api/tournaments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: form.name.trim(),
           description: form.description.trim() || null,
@@ -153,9 +157,8 @@ export default function AdminTournamentsPage() {
   const handleStatusChange = async (id: string, status: Tournament['status']) => {
     setBusyId(id);
     try {
-      const res = await fetch(`/api/tournaments/${id}`, {
+      const res = await fetchApi(`/api/tournaments/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       });
       if (res.ok) {
@@ -175,7 +178,7 @@ export default function AdminTournamentsPage() {
     setExpandedId(id);
     setRegsLoading(true);
     try {
-      const res = await fetch(`/api/tournaments/${id}/registrations`);
+      const res = await fetchApi(`/api/tournaments/${id}/registrations`);
       setRegistrations(res.ok ? await res.json() : []);
     } finally {
       setRegsLoading(false);
@@ -186,7 +189,7 @@ export default function AdminTournamentsPage() {
     setBusyId(id);
     setFormTeamsMsg(prev => ({ ...prev, [id]: '' }));
     try {
-      const res = await fetch(`/api/tournaments/${id}/form-teams`, { method: 'POST' });
+      const res = await fetchApi(`/api/tournaments/${id}/form-teams`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setFormTeamsMsg(prev => ({ ...prev, [id]: data.error ?? 'Failed to form teams' }));
@@ -198,9 +201,26 @@ export default function AdminTournamentsPage() {
         : `Formed ${teams} team${teams === 1 ? '' : 's'}.`;
       setFormTeamsMsg(prev => ({ ...prev, [id]: msg }));
       if (expandedId === id) {
-        const regRes = await fetch(`/api/tournaments/${id}/registrations`);
+        const regRes = await fetchApi(`/api/tournaments/${id}/registrations`);
         setRegistrations(regRes.ok ? await regRes.json() : []);
       }
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleGenerateBracket = async (id: string) => {
+    setBusyId(id + '-bracket');
+    setBracketMsg(prev => ({ ...prev, [id]: '' }));
+    try {
+      const res = await fetchApi(`/api/tournaments/${id}/generate-bracket`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setBracketMsg(prev => ({ ...prev, [id]: `❌ ${data.error ?? 'Failed to generate bracket'}` }));
+        return;
+      }
+      setBracketMsg(prev => ({ ...prev, [id]: `✓ ${data.message ?? 'Bracket generated!'}` }));
+      await refreshTournaments();
     } finally {
       setBusyId(null);
     }
@@ -426,23 +446,46 @@ export default function AdminTournamentsPage() {
 
                         {expandedId === t.id && (
                           <div className="mt-4 pt-4 border-t border-gray-50">
-                            <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
                                 Registered Players
                               </p>
-                              <button
-                                onClick={() => handleFormTeams(t.id)}
-                                disabled={busyId === t.id}
-                                className="text-xs px-3 py-1.5 rounded-full font-semibold transition-colors flex items-center gap-1.5 disabled:opacity-60"
-                                style={{ backgroundColor: '#FFB81C', color: '#0a0a0a' }}
-                              >
-                                {busyId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shuffle className="w-3.5 h-3.5" />}
-                                Form Teams
-                              </button>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <button
+                                  onClick={() => handleFormTeams(t.id)}
+                                  disabled={!!busyId}
+                                  className="text-xs px-3 py-1.5 rounded-full font-semibold transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                                  style={{ backgroundColor: '#FFB81C', color: '#0a0a0a' }}
+                                >
+                                  {busyId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shuffle className="w-3.5 h-3.5" />}
+                                  Form Teams
+                                </button>
+                                <button
+                                  onClick={() => handleGenerateBracket(t.id)}
+                                  disabled={!!busyId}
+                                  className="text-xs px-3 py-1.5 rounded-full font-semibold border transition-colors flex items-center gap-1.5 disabled:opacity-60 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                                >
+                                  {busyId === t.id + '-bracket' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <GitBranch className="w-3.5 h-3.5" />}
+                                  Generate Bracket
+                                </button>
+                              </div>
                             </div>
 
                             {formTeamsMsg[t.id] && (
-                              <p className="text-xs text-gray-500 mb-3">{formTeamsMsg[t.id]}</p>
+                              <p className="text-xs text-gray-500 mb-2">{formTeamsMsg[t.id]}</p>
+                            )}
+                            {bracketMsg[t.id] && (
+                              <div className="flex items-center gap-3 mb-3">
+                                <p className="text-xs text-indigo-600">{bracketMsg[t.id]}</p>
+                                {bracketMsg[t.id].startsWith('✓') && (
+                                  <Link
+                                    href={`/dashboard/tournaments/${t.id}`}
+                                    className="text-xs font-semibold text-[#FFB81C] hover:text-[#e6a418] flex items-center gap-1 transition-colors"
+                                  >
+                                    View Bracket →
+                                  </Link>
+                                )}
+                              </div>
                             )}
 
                             {regsLoading ? (

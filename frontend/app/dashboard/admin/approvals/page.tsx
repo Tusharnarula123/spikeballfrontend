@@ -7,6 +7,7 @@ import { DashboardShell, EmptyState, Chip } from '@/components/ui/dashboard-shel
 import {
   ClipboardCheck, Check, X, AlertTriangle, Pencil, Loader2, Trophy, Calendar,
 } from 'lucide-react';
+import { useApi } from '@/hooks/use-api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,7 @@ const playerName = (p: PlayerRef) => `${p.first_name} ${p.last_name}`;
 export default function AdminApprovalsPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
+  const { fetchApi, isLoaded: authLoaded } = useApi();
 
   const [matches, setMatches] = useState<PendingMatch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,12 +57,12 @@ export default function AdminApprovalsPage() {
   const isAdmin = user?.publicMetadata?.role === 'admin';
 
   const refresh = async () => {
-    const res = await fetch('/api/matches/pending');
+    const res = await fetchApi('/api/matches/pending');
     if (res.ok) setMatches(await res.json());
   };
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !authLoaded) return;
     if (!isAdmin) {
       router.replace('/dashboard');
       return;
@@ -72,7 +74,7 @@ export default function AdminApprovalsPage() {
         setLoading(false);
       }
     })();
-  }, [isLoaded, isAdmin, router]);
+  }, [isLoaded, authLoaded, isAdmin, router]);
 
   const startEdit = (m: PendingMatch) => {
     setEditingId(m.id);
@@ -102,9 +104,8 @@ export default function AdminApprovalsPage() {
       if (edit.scoreTeam1 !== '') body.scoreTeam1 = Number(edit.scoreTeam1);
       if (edit.scoreTeam2 !== '') body.scoreTeam2 = Number(edit.scoreTeam2);
 
-      const res = await fetch(`/api/matches/${id}`, {
+      const res = await fetchApi(`/api/matches/${id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
@@ -123,7 +124,7 @@ export default function AdminApprovalsPage() {
     setBusyId(id);
     setError(null);
     try {
-      const res = await fetch(`/api/matches/${id}/approve`, { method: 'PATCH' });
+      const res = await fetchApi(`/api/matches/${id}/approve`, { method: 'PATCH' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(data.error ?? 'Failed to approve match');
@@ -144,9 +145,8 @@ export default function AdminApprovalsPage() {
     setBusyId(id);
     setError(null);
     try {
-      const res = await fetch(`/api/matches/${id}/dispute`, {
+      const res = await fetchApi(`/api/matches/${id}/dispute`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes: edit?.notes }),
       });
       if (!res.ok) {
@@ -164,9 +164,8 @@ export default function AdminApprovalsPage() {
     setBusyId(id);
     setError(null);
     try {
-      const res = await fetch(`/api/matches/${id}/cancel`, {
+      const res = await fetchApi(`/api/matches/${id}/cancel`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes: edit?.notes }),
       });
       if (!res.ok) {

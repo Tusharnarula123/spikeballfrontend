@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { X, Check, Loader2, User, GraduationCap, FileText } from 'lucide-react';
+import { useApi } from '@/hooks/use-api';
 
 const BIO_MAX = 200;
 
@@ -20,6 +21,7 @@ interface EditProfileModalProps {
  */
 export function EditProfileModal({ open, onClose, onSaved }: EditProfileModalProps) {
   const { user } = useUser();
+  const { fetchApi, isLoaded: authLoaded } = useApi();
 
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -33,7 +35,7 @@ export function EditProfileModal({ open, onClose, onSaved }: EditProfileModalPro
 
   // Load fresh values every time the modal opens
   useEffect(() => {
-    if (!open) return;
+    if (!open || !authLoaded) return;
     setError(null);
     setSaved(false);
     setLoading(true);
@@ -43,7 +45,7 @@ export function EditProfileModal({ open, onClose, onSaved }: EditProfileModalPro
     setLastName(user?.lastName ?? '');
 
     // …then overlay whatever is stored in the players table.
-    fetch('/api/players/me')
+    fetchApi('/api/players/me')
       .then(r => (r.ok ? r.json() : null))
       .then(data => {
         if (!data) return; // no player row yet — server will create it on save
@@ -54,7 +56,7 @@ export function EditProfileModal({ open, onClose, onSaved }: EditProfileModalPro
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [open, user]);
+  }, [open, authLoaded, user, fetchApi]);
 
   const handleSave = async () => {
     if (!firstName.trim()) {
@@ -64,9 +66,8 @@ export function EditProfileModal({ open, onClose, onSaved }: EditProfileModalPro
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch('/api/players/me', {
+      const res = await fetchApi('/api/players/me', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           firstName: firstName.trim(),
           lastName: lastName.trim(),

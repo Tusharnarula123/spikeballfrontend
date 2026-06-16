@@ -5,6 +5,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { HeroSection } from '@/components/ui/feature-carousel'
 import { ContainerScroll } from '@/components/ui/container-scroll-animation'
+import { apiFetch } from '@/lib/api'
 
 // Types 
 interface LeaderboardEntry {
@@ -199,7 +200,7 @@ function ScrollPreview() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
 
   useEffect(() => {
-    fetch('/api/leaderboard')
+    apiFetch('/api/leaderboard')
       .then(r => r.json())
       .then(data => setLeaderboard(Array.isArray(data) ? data : []))
       .catch(() => setLeaderboard([]))
@@ -431,26 +432,14 @@ function Announcements() {
 
 // ─── Gallery ──────────────────────────────────────────────────────────────────
 const GALLERY_IMAGES = [
-  {
-    src: 'https://images.unsplash.com/photo-1526401281623-3c84a9a22be4?w=800&auto=format&fit=crop&q=80',
-    alt: 'Players competing in roundnet',
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1607962837359-5e7e89f86776?w=800&auto=format&fit=crop&q=80',
-    alt: 'Outdoor spikeball session on campus',
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1612872087720-bb876e2e67d1?w=800&auto=format&fit=crop&q=80',
-    alt: 'Team huddle at tournament',
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?w=800&auto=format&fit=crop&q=80',
-    alt: 'Club members at OU Invitational',
-  },
-  {
-    src: 'https://images.unsplash.com/photo-1530915534664-4ac6423a5b26?w=800&auto=format&fit=crop&q=80',
-    alt: 'Competitive match in action',
-  },
+  { src: '/gallery/photo-1.jpg', alt: 'Player serving at a roundnet match' },
+  { src: '/gallery/photo-2.jpg', alt: 'Player celebrating on the field' },
+  { src: '/gallery/photo-3.jpg', alt: 'OU Roundnet team photo at tournament' },
+  { src: '/gallery/photo-4.jpg', alt: 'Team huddle at night practice' },
+  { src: '/gallery/photo-5.jpg', alt: 'Player showing off the Grizzly Roundnet jersey' },
+  { src: '/gallery/photo-6.jpg', alt: 'Club members at indoor practice session' },
+  { src: '/gallery/photo-7.jpg', alt: 'OU Roundnet Club in action' },
+  { src: '/gallery/photo-8.jpg', alt: 'Player ready at the net indoors' },
 ]
 
 function Gallery() {

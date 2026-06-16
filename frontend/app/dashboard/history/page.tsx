@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
 import { DashboardShell } from '@/components/ui/dashboard-shell';
 import { Trophy, X as XIcon, Clock, AlertTriangle } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
+import { useApi } from '@/hooks/use-api';
 
 interface MatchEntry {
   id: string;
@@ -25,7 +27,8 @@ interface Season {
 }
 
 export default function MatchHistoryPage() {
-  const { isLoaded } = useUser();
+  const { isLoaded: userLoaded } = useUser();
+  const { fetchApi, isLoaded: authLoaded } = useApi();
 
   const [matches, setMatches]     = useState<MatchEntry[]>([]);
   const [seasons, setSeasons]     = useState<Season[]>([]);
@@ -34,13 +37,13 @@ export default function MatchHistoryPage() {
   const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!userLoaded || !authLoaded) return;
 
     const load = async () => {
       try {
         const [activeRes, seasonsRes] = await Promise.all([
-          fetch('/api/seasons/active'),
-          fetch('/api/seasons'),
+          apiFetch('/api/seasons/active'),
+          apiFetch('/api/seasons'),
         ]);
 
         let activeId: string | null = null;
@@ -54,7 +57,7 @@ export default function MatchHistoryPage() {
         }
 
         const url = activeId ? `/api/matches/me?seasonId=${activeId}` : '/api/matches/me';
-        const matchesRes = await fetch(url);
+        const matchesRes = await fetchApi(url);
         if (matchesRes.ok) setMatches(await matchesRes.json());
       } catch {
         // silently fail
@@ -64,7 +67,7 @@ export default function MatchHistoryPage() {
     };
 
     load();
-  }, [isLoaded]);
+  }, [userLoaded, authLoaded, fetchApi]);
 
   const handleScopeChange = async (next: 'season' | 'all') => {
     setScope(next);
@@ -73,7 +76,7 @@ export default function MatchHistoryPage() {
       const url = next === 'season' && activeSeasonId
         ? `/api/matches/me?seasonId=${activeSeasonId}`
         : '/api/matches/me';
-      const res = await fetch(url);
+      const res = await fetchApi(url);
       if (res.ok) setMatches(await res.json());
     } catch {
       // silently fail
@@ -88,7 +91,7 @@ export default function MatchHistoryPage() {
     <DashboardShell
       title="Match History"
       subtitle="Every match you've played, win or lose."
-      loading={!isLoaded}
+      loading={!userLoaded || !authLoaded || loading}
       width="wide"
     >
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">

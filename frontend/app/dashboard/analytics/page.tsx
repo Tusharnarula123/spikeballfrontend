@@ -6,6 +6,8 @@ import { DashboardShell } from '@/components/ui/dashboard-shell';
 import { EloLineChart } from '@/components/ui/elo-line-chart';
 import { WinLossDonut } from '@/components/ui/win-loss-donut';
 import { TrendingUp, TrendingDown, Users, BarChart3 } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
+import { useApi } from '@/hooks/use-api';
 
 interface MatchEntry {
   id: string;
@@ -49,7 +51,8 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string 
 }
 
 export default function AnalyticsPage() {
-  const { isLoaded } = useUser();
+  const { isLoaded: userLoaded } = useUser();
+  const { fetchApi, isLoaded: authLoaded } = useApi();
 
   const [matches, setMatches]       = useState<MatchEntry[]>([]);
   const [eloHistory, setEloHistory] = useState<EloPoint[]>([]);
@@ -60,15 +63,15 @@ export default function AnalyticsPage() {
   const [loading, setLoading]       = useState(true);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!userLoaded || !authLoaded) return;
 
     const load = async () => {
       try {
         const [activeRes, seasonsRes, eloRes, matchesRes] = await Promise.all([
-          fetch('/api/seasons/active'),
-          fetch('/api/seasons'),
-          fetch('/api/players/me/elo-history'),
-          fetch('/api/matches/me'),
+          apiFetch('/api/seasons/active'),
+          apiFetch('/api/seasons'),
+          fetchApi('/api/players/me/elo-history'),
+          fetchApi('/api/matches/me'),
         ]);
 
         if (activeRes.ok) {
@@ -86,7 +89,7 @@ export default function AnalyticsPage() {
     };
 
     load();
-  }, [isLoaded]);
+  }, [userLoaded, authLoaded, fetchApi]);
 
   // Only approved matches count toward win/loss + ELO stats
   const approvedMatches = useMemo(() => matches.filter((m) => m.status === 'approved'), [matches]);
@@ -160,7 +163,7 @@ export default function AnalyticsPage() {
     <DashboardShell
       title="Analytics"
       subtitle="Your ELO progression and match performance."
-      loading={!isLoaded || loading}
+      loading={!userLoaded || !authLoaded || loading}
       width="wide"
     >
               <>

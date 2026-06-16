@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { useSignUp } from "@clerk/nextjs/legacy";
+import { useAuth } from "@clerk/nextjs";
+import { apiFetch } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,6 +79,7 @@ const EyeBall = ({ size = 48, pupilSize = 16, maxDistance = 10, eyeColor = "whit
 // ─── Signup Page ──────────────────────────────────────────────────────────────
 function SignupPage() {
   const { isLoaded, signUp, setActive } = useSignUp();
+  const { getToken } = useAuth();
   const router = useRouter();
 
   const [showPassword, setShowPassword] = useState(false);
@@ -189,9 +192,9 @@ function SignupPage() {
         await setActive({ session: result.createdSessionId });
 
         // Create player record in Supabase (status: pending, awaiting admin approval)
-        const playerRes = await fetch("/api/players", {
+        const token = await getToken();
+        const playerRes = await apiFetch("/api/players", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             firstName: form.firstName,
             lastName: form.lastName,
@@ -199,7 +202,7 @@ function SignupPage() {
             age: Number(form.age),
             gender: form.gender,
           }),
-        });
+        }, token);
         if (!playerRes.ok) {
           const data = await playerRes.json().catch(() => ({}));
           console.error("Failed to create player record:", data.error);

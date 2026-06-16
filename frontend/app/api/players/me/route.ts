@@ -31,8 +31,13 @@ export async function PATCH(req: NextRequest) {
   const lastName   = typeof body.lastName   === 'string' ? body.lastName.trim()   : undefined;
   const university = typeof body.university === 'string' ? body.university.trim() : undefined;
   const bio        = typeof body.bio        === 'string' ? body.bio.trim()        : undefined;
+  const age        = typeof body.age === 'number' ? body.age : (body.age ? Number(body.age) : undefined);
+  const gender     = typeof body.gender === 'string' ? body.gender : undefined;
 
   if (firstName === '') return err('First name cannot be empty');
+  if (age !== undefined && (isNaN(age) || age < 16 || age > 99)) return err('Age must be between 16 and 99');
+  const validGenders = ['male', 'female', 'non_binary', 'prefer_not_to_say'];
+  if (gender !== undefined && !validGenders.includes(gender)) return err('Invalid gender value');
 
   const client = await clerkClient();
   const clerkUser = await client.users.getUser(auth.userId);
@@ -71,6 +76,8 @@ export async function PATCH(req: NextRequest) {
   if (lastName   !== undefined) updates.last_name  = lastName;   // empty allowed
   if (university !== undefined) updates.university = university || null;
   if (bio        !== undefined) updates.bio        = bio || null;
+  if (age        !== undefined && !isNaN(age)) updates.age = age;
+  if (gender     !== undefined) updates.gender = gender;
 
   if (Object.keys(updates).length === 0) return err('Nothing to update');
 

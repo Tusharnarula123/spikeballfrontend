@@ -5,6 +5,8 @@ import { useUser, useClerk } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/ui/modern-side-bar';
 import { EditProfileModal } from '@/components/ui/edit-profile-modal';
+import { apiFetch } from '@/lib/api';
+import { useApi } from '@/hooks/use-api';
 import {
   Trophy,
   ChevronDown,
@@ -54,6 +56,7 @@ export default function DashboardPage() {
   const { user, isLoaded } = useUser();
   const { signOut } = useClerk();
   const router = useRouter();
+  const { fetchApi, isLoaded: authLoaded } = useApi();
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -66,7 +69,7 @@ export default function DashboardPage() {
 
   // Fetch real leaderboard
   useEffect(() => {
-    fetch('/api/leaderboard')
+    apiFetch('/api/leaderboard')
       .then(r => r.json())
       .then(data => setLeaderboard(Array.isArray(data) ? data : []))
       .catch(() => setLeaderboard([]));
@@ -74,7 +77,8 @@ export default function DashboardPage() {
 
   // Fetch announcements (live tournaments + general club news)
   useEffect(() => {
-    fetch('/api/announcements')
+    if (!authLoaded) return;
+    fetchApi('/api/announcements')
       .then(r => r.json())
       .then((data: { id: string; type: Announcement['type']; title: string; body: string; date: string }[]) => {
         setAnnouncements(
@@ -84,16 +88,16 @@ export default function DashboardPage() {
         );
       })
       .catch(() => setAnnouncements([]));
-  }, []);
+  }, [authLoaded, fetchApi]);
 
   // Fetch current player's DB id (to highlight their leaderboard row)
   useEffect(() => {
-    if (!isLoaded || !user) return;
-    fetch('/api/players/me')
+    if (!isLoaded || !authLoaded || !user) return;
+    fetchApi('/api/players/me')
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.id) setMyPlayerId(data.id); })
       .catch(() => {});
-  }, [isLoaded, user]);
+  }, [isLoaded, authLoaded, user, fetchApi]);
 
   // Close avatar dropdown on outside click
   useEffect(() => {

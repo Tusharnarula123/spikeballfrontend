@@ -78,10 +78,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   // ── Sort teams by average ELO desc (seed 1 = best) ──
   const sortedTeams = [...teams].sort((a, b) => {
-    const eloA = (((a.player1 as { current_elo: number })?.current_elo ?? 1200) +
-                  ((a.player2 as { current_elo: number })?.current_elo ?? 1200)) / 2;
-    const eloB = (((b.player1 as { current_elo: number })?.current_elo ?? 1200) +
-                  ((b.player2 as { current_elo: number })?.current_elo ?? 1200)) / 2;
+    const eloA = (((a.player1 as unknown as { current_elo: number })?.current_elo ?? 1200) +
+                  ((a.player2 as unknown as { current_elo: number })?.current_elo ?? 1200)) / 2;
+    const eloB = (((b.player1 as unknown as { current_elo: number })?.current_elo ?? 1200) +
+                  ((b.player2 as unknown as { current_elo: number })?.current_elo ?? 1200)) / 2;
     return eloB - eloA;
   });
 

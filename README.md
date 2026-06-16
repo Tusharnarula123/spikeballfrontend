@@ -168,3 +168,5 @@ Set Root Directory to `frontend` in Vercel project settings, then add the same 4
 ## Contributing
 
 This is a private club project. Contact an admin to get access.
+git remote set-url origin https://Tusharnarula123:<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>@github.com/Tusharnarula123/spikeballfrontend.git
+git push -u origin main

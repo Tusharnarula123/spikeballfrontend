@@ -10,6 +10,8 @@ import { useApi } from '@/hooks/use-api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+const PLACEMENT_MATCHES = 5;
+
 interface Player {
   id: string;
   first_name: string;
@@ -19,6 +21,7 @@ interface Player {
   gender: string;
   university?: string | null;
   current_elo: number;
+  placement_matches_played: number;
   status?: string;
 }
 
@@ -166,7 +169,13 @@ export default function RegisterPage() {
                 <InfoStat label="School" value={player?.university || '—'} icon={<GraduationCap className="w-3.5 h-3.5" />} />
                 <InfoStat label="Age" value={player?.age ?? '—'} />
                 <InfoStat label="Gender" value={player?.gender ? player.gender.charAt(0).toUpperCase() + player.gender.slice(1) : '—'} />
-                <InfoStat label="ELO" value={player?.current_elo ?? '—'} gold icon={<Zap className="w-3.5 h-3.5" />} />
+                <InfoStat
+                  label="ELO"
+                  value={player && (player.placement_matches_played ?? 0) >= PLACEMENT_MATCHES ? player.current_elo : '—'}
+                  sub={player && (player.placement_matches_played ?? 0) < PLACEMENT_MATCHES ? `${player.placement_matches_played ?? 0}/${PLACEMENT_MATCHES} placements` : undefined}
+                  gold
+                  icon={<Zap className="w-3.5 h-3.5" />}
+                />
               </div>
             </Card>
 
@@ -188,7 +197,8 @@ export default function RegisterPage() {
                     const reg = myRegMap.get(t.id);
                     const isRegistered = !!reg;
                     const isBusy = busyId === t.id;
-                    const canRegister = t.status === 'registration_open' && !isRegistered;
+                    const isApproved = player?.status === 'active';
+                    const canRegister = t.status === 'registration_open' && !isRegistered && isApproved;
                     const canUnregister = isRegistered && t.status !== 'in_progress' && t.status !== 'completed';
 
                     return (
@@ -283,7 +293,11 @@ export default function RegisterPage() {
                             </div>
                           ) : (
                             <p className="text-xs text-gray-400">
-                              {t.status === 'in_progress' ? 'This tournament is already underway.' : 'Registration is not currently open.'}
+                              {!isApproved && t.status === 'registration_open'
+                                ? 'Your account is pending admin approval. You\'ll be able to register once approved.'
+                                : t.status === 'in_progress'
+                                ? 'This tournament is already underway.'
+                                : 'Registration is not currently open.'}
                             </p>
                           )}
                         </div>

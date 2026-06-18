@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DashboardShell, SectionHeading, EmptyState, Chip } from '@/components/ui/dashboard-shell';
 import {
-  Trophy, Plus, Users, Shuffle, Calendar, Loader2, ChevronDown, ChevronUp, GitBranch,
+  Trophy, Plus, Users, Shuffle, Calendar, Loader2, ChevronDown, ChevronUp, GitBranch, LayoutList, Pencil, Trash2, X,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useApi } from '@/hooks/use-api';
@@ -20,6 +20,7 @@ interface Tournament {
   is_casual: boolean;
   affects_elo: boolean;
   team_formation: 'random' | 'self_select';
+  tournament_type: 'bracket' | 'round_robin';
   season_id: string | null;
   start_date: string;
   end_date: string | null;
@@ -65,6 +66,7 @@ const emptyForm = {
   isCasual: false,
   affectsElo: true,
   teamFormation: 'random' as 'random' | 'self_select',
+  tournamentType: 'bracket' as 'bracket' | 'round_robin',
   seasonId: '',
   startDate: '',
   endDate: '',
@@ -87,7 +89,19 @@ export default function AdminTournamentsPage() {
   const [regsLoading, setRegsLoading] = useState(false);
   const [formTeamsMsg, setFormTeamsMsg] = useState<Record<string, string>>({});
   const [bracketMsg, setBracketMsg] = useState<Record<string, string>>({});
+  const [rrMsg, setRrMsg] = useState<Record<string, string>>({});
+  const [finalsMsg, setFinalsMsg] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  // Edit modal
+  const [editingTournament, setEditingTournament] = useState<Tournament | null>(null);
+  const [editForm, setEditForm] = useState(emptyForm);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // Delete confirm
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const isAdmin = user?.publicMetadata?.role === 'admin';
 
@@ -136,6 +150,7 @@ export default function AdminTournamentsPage() {
           isCasual: form.isCasual,
           affectsElo: form.affectsElo,
           teamFormation: form.teamFormation,
+          tournamentType: form.tournamentType,
           seasonId: form.seasonId || null,
           startDate: form.startDate,
           endDate: form.endDate || null,
@@ -223,6 +238,102 @@ export default function AdminTournamentsPage() {
       await refreshTournaments();
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const handleGenerateRR = async (id: string) => {
+    setBusyId(id + '-rr');
+    setRrMsg(prev => ({ ...prev, [id]: '' }));
+    try {
+      const res = await fetchApi(`/api/tournaments/${id}/generate-round-robin`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setRrMsg(prev => ({ ...prev, [id]: `❌ ${data.error ?? 'Failed to generate schedule'}` }));
+        return;
+      }
+      setRrMsg(prev => ({ ...prev, [id]: `✓ ${data.message ?? 'Schedule generated!'}` }));
+      await refreshTournaments();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleGenerateFinals = async (id: string) => {
+    setBusyId(id + '-finals');
+    setFinalsMsg(prev => ({ ...prev, [id]: '' }));
+    try {
+      const res = await fetchApi(`/api/tournaments/${id}/generate-finals`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFinalsMsg(prev => ({ ...prev, [id]: `❌ ${data.error ?? 'Failed to create finals'}` }));
+        return;
+      }
+      setFinalsMsg(prev => ({ ...prev, [id]: `✓ ${data.message ?? 'Finals match created!'}` }));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const openEdit = (t: Tournament) => {
+    setEditingTournament(t);
+    setEditError(null);
+    setEditForm({
+      name: t.name,
+      description: t.description ?? '',
+      isCasual: t.is_casual,
+      affectsElo: t.affects_elo,
+      teamFormation: t.team_formation,
+      tournamentType: t.tournament_type,
+      seasonId: t.season_id ?? '',
+      startDate: t.start_date.slice(0, 10),
+      endDate: t.end_date ? t.end_date.slice(0, 10) : '',
+    });
+  };
+
+  const handleEditSave = async () => {
+    if (!editingTournament) return;
+    setEditError(null);
+    if (!editForm.name.trim() || !editForm.startDate) {
+      setEditError('Name and start date are required');
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const res = await fetchApi(`/api/tournaments/${editingTournament.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: editForm.name.trim(),
+          description: editForm.description.trim() || null,
+          isCasual: editForm.isCasual,
+          affectsElo: editForm.affectsElo,
+          teamFormation: editForm.teamFormation,
+          tournamentType: editForm.tournamentType,
+          seasonId: editForm.seasonId || null,
+          startDate: editForm.startDate,
+          endDate: editForm.endDate || null,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setEditError(data.error ?? 'Failed to save changes');
+        return;
+      }
+      setEditingTournament(null);
+      await refreshTournaments();
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await fetchApi(`/api/tournaments/${id}`, { method: 'DELETE' });
+      setTournaments(prev => prev.filter(t => t.id !== id));
+      if (expandedId === id) setExpandedId(null);
+    } finally {
+      setDeletingId(null);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -341,6 +452,33 @@ export default function AdminTournamentsPage() {
                   </div>
                 </div>
 
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                    Tournament Format
+                  </label>
+                  <div className="flex gap-2">
+                    {([
+                      { key: 'bracket',     label: 'Bracket',     icon: GitBranch },
+                      { key: 'round_robin', label: 'Round Robin', icon: LayoutList },
+                    ] as const).map(({ key, label, icon: Icon }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, tournamentType: key }))}
+                        className="flex-1 flex items-center justify-center gap-1.5 text-xs px-3 py-2.5 rounded-lg border transition-all duration-200"
+                        style={{
+                          borderColor: form.tournamentType === key ? '#FFB81C' : '#e5e5e5',
+                          color: form.tournamentType === key ? '#FFB81C' : '#888',
+                          backgroundColor: form.tournamentType === key ? 'rgba(255,184,28,0.08)' : 'transparent',
+                        }}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="sm:col-span-2 flex flex-col sm:flex-row gap-3 pt-1">
                   <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                     <input
@@ -409,6 +547,9 @@ export default function AdminTournamentsPage() {
                               <span className="text-xs font-medium px-2.5 py-0.5 rounded-full border bg-indigo-50 text-indigo-600 border-indigo-200">
                                 {t.team_formation === 'random' ? 'Random Teams' : 'Players Choose Teams'}
                               </span>
+                              <span className="text-xs font-medium px-2.5 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200">
+                                {t.tournament_type === 'round_robin' ? 'Round Robin' : 'Bracket'}
+                              </span>
                             </div>
                             {t.description && (
                               <p className="text-sm text-gray-500 mb-1.5 max-w-xl">{t.description}</p>
@@ -423,7 +564,7 @@ export default function AdminTournamentsPage() {
                             </p>
                           </div>
 
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <select
                               value={t.status}
                               onChange={e => handleStatusChange(t.id, e.target.value as Tournament['status'])}
@@ -434,6 +575,39 @@ export default function AdminTournamentsPage() {
                                 <option key={value} value={value}>{label}</option>
                               ))}
                             </select>
+                            <button
+                              onClick={() => openEdit(t)}
+                              className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center gap-1"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                              Edit
+                            </button>
+                            {deleteConfirmId === t.id ? (
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-xs text-red-500 font-medium">Delete?</span>
+                                <button
+                                  onClick={() => handleDelete(t.id)}
+                                  disabled={deletingId === t.id}
+                                  className="text-xs px-2.5 py-1 rounded-full bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors disabled:opacity-60"
+                                >
+                                  {deletingId === t.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Yes'}
+                                </button>
+                                <button
+                                  onClick={() => setDeleteConfirmId(null)}
+                                  className="text-xs px-2.5 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setDeleteConfirmId(t.id)}
+                                className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:border-red-300 hover:text-red-500 transition-colors flex items-center gap-1"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                Delete
+                              </button>
+                            )}
                             <button
                               onClick={() => toggleRegistrations(t.id)}
                               className="text-xs px-3 py-1.5 rounded-full border border-gray-200 text-gray-600 hover:border-[#FFB81C] hover:text-[#FFB81C] transition-colors flex items-center gap-1"
@@ -460,14 +634,36 @@ export default function AdminTournamentsPage() {
                                   {busyId === t.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shuffle className="w-3.5 h-3.5" />}
                                   Form Teams
                                 </button>
-                                <button
-                                  onClick={() => handleGenerateBracket(t.id)}
-                                  disabled={!!busyId}
-                                  className="text-xs px-3 py-1.5 rounded-full font-semibold border transition-colors flex items-center gap-1.5 disabled:opacity-60 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
-                                >
-                                  {busyId === t.id + '-bracket' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <GitBranch className="w-3.5 h-3.5" />}
-                                  Generate Bracket
-                                </button>
+
+                                {t.tournament_type === 'round_robin' ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleGenerateRR(t.id)}
+                                      disabled={!!busyId}
+                                      className="text-xs px-3 py-1.5 rounded-full font-semibold border transition-colors flex items-center gap-1.5 disabled:opacity-60 border-violet-200 text-violet-700 hover:bg-violet-50"
+                                    >
+                                      {busyId === t.id + '-rr' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <LayoutList className="w-3.5 h-3.5" />}
+                                      Generate Schedule
+                                    </button>
+                                    <button
+                                      onClick={() => handleGenerateFinals(t.id)}
+                                      disabled={!!busyId}
+                                      className="text-xs px-3 py-1.5 rounded-full font-semibold border transition-colors flex items-center gap-1.5 disabled:opacity-60 border-amber-200 text-amber-700 hover:bg-amber-50"
+                                    >
+                                      {busyId === t.id + '-finals' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trophy className="w-3.5 h-3.5" />}
+                                      Generate Finals
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    onClick={() => handleGenerateBracket(t.id)}
+                                    disabled={!!busyId}
+                                    className="text-xs px-3 py-1.5 rounded-full font-semibold border transition-colors flex items-center gap-1.5 disabled:opacity-60 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                                  >
+                                    {busyId === t.id + '-bracket' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <GitBranch className="w-3.5 h-3.5" />}
+                                    Generate Bracket
+                                  </button>
+                                )}
                               </div>
                             </div>
 
@@ -486,6 +682,22 @@ export default function AdminTournamentsPage() {
                                   </Link>
                                 )}
                               </div>
+                            )}
+                            {rrMsg[t.id] && (
+                              <div className="flex items-center gap-3 mb-3">
+                                <p className="text-xs text-violet-700">{rrMsg[t.id]}</p>
+                                {rrMsg[t.id].startsWith('✓') && (
+                                  <Link
+                                    href={`/dashboard/tournaments/${t.id}`}
+                                    className="text-xs font-semibold text-[#FFB81C] hover:text-[#e6a418] flex items-center gap-1 transition-colors"
+                                  >
+                                    View Standings →
+                                  </Link>
+                                )}
+                              </div>
+                            )}
+                            {finalsMsg[t.id] && (
+                              <p className="text-xs text-amber-700 mb-2">{finalsMsg[t.id]}</p>
                             )}
 
                             {regsLoading ? (
@@ -532,6 +744,168 @@ export default function AdminTournamentsPage() {
                 </div>
               )}
             </section>
+
+      {/* ── Edit Modal ── */}
+      {editingTournament && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <h2 className="font-bold text-gray-900">Edit Tournament</h2>
+              <button onClick={() => setEditingTournament(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Tournament Name</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FFB81C] focus:border-transparent"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Description <span className="text-gray-400 normal-case font-normal">(optional)</span></label>
+                <textarea
+                  value={editForm.description}
+                  onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                  rows={2}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FFB81C] focus:border-transparent resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Start Date</label>
+                <input
+                  type="date"
+                  value={editForm.startDate}
+                  onChange={e => setEditForm(f => ({ ...f, startDate: e.target.value }))}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FFB81C] focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">End Date <span className="text-gray-400 normal-case font-normal">(optional)</span></label>
+                <input
+                  type="date"
+                  value={editForm.endDate}
+                  onChange={e => setEditForm(f => ({ ...f, endDate: e.target.value }))}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FFB81C] focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Season <span className="text-gray-400 normal-case font-normal">(optional)</span></label>
+                <select
+                  value={editForm.seasonId}
+                  onChange={e => setEditForm(f => ({ ...f, seasonId: e.target.value }))}
+                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#FFB81C] focus:border-transparent"
+                >
+                  <option value="">None</option>
+                  {seasons.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}{s.is_active ? ' (active)' : ''}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Team Formation</label>
+                <div className="flex gap-2">
+                  {([
+                    { key: 'random', label: 'Random', icon: Shuffle },
+                    { key: 'self_select', label: 'Players Choose', icon: Users },
+                  ] as const).map(({ key, label, icon: Icon }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setEditForm(f => ({ ...f, teamFormation: key }))}
+                      className="flex-1 flex items-center justify-center gap-1.5 text-xs px-3 py-2.5 rounded-lg border transition-all"
+                      style={{
+                        borderColor: editForm.teamFormation === key ? '#FFB81C' : '#e5e5e5',
+                        color: editForm.teamFormation === key ? '#FFB81C' : '#888',
+                        backgroundColor: editForm.teamFormation === key ? 'rgba(255,184,28,0.08)' : 'transparent',
+                      }}
+                    >
+                      <Icon className="w-3.5 h-3.5" />{label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Tournament Format</label>
+                <div className="flex gap-2">
+                  {([
+                    { key: 'bracket', label: 'Bracket', icon: GitBranch },
+                    { key: 'round_robin', label: 'Round Robin', icon: LayoutList },
+                  ] as const).map(({ key, label, icon: Icon }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setEditForm(f => ({ ...f, tournamentType: key }))}
+                      className="flex-1 flex items-center justify-center gap-1.5 text-xs px-3 py-2.5 rounded-lg border transition-all"
+                      style={{
+                        borderColor: editForm.tournamentType === key ? '#FFB81C' : '#e5e5e5',
+                        color: editForm.tournamentType === key ? '#FFB81C' : '#888',
+                        backgroundColor: editForm.tournamentType === key ? 'rgba(255,184,28,0.08)' : 'transparent',
+                      }}
+                    >
+                      <Icon className="w-3.5 h-3.5" />{label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="sm:col-span-2 flex flex-col sm:flex-row gap-3">
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editForm.isCasual}
+                    onChange={e => {
+                      const isCasual = e.target.checked;
+                      setEditForm(f => ({ ...f, isCasual, affectsElo: isCasual ? false : f.affectsElo }));
+                    }}
+                    className="w-4 h-4 rounded border-gray-300 accent-[#FFB81C]"
+                  />
+                  Casual tournament
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editForm.affectsElo}
+                    onChange={e => setEditForm(f => ({ ...f, affectsElo: e.target.checked }))}
+                    className="w-4 h-4 rounded border-gray-300 accent-[#FFB81C]"
+                  />
+                  Results affect player ELO
+                </label>
+              </div>
+            </div>
+
+            {editError && <p className="text-xs text-red-500 px-5 pb-2">{editError}</p>}
+
+            <div className="flex justify-end gap-3 px-5 pb-5">
+              <button
+                onClick={() => setEditingTournament(null)}
+                className="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditSave}
+                disabled={editSaving}
+                className="px-4 py-2 text-sm font-bold rounded-lg flex items-center gap-1.5 disabled:opacity-60"
+                style={{ backgroundColor: '#FFB81C', color: '#0a0a0a' }}
+              >
+                {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </DashboardShell>
   );

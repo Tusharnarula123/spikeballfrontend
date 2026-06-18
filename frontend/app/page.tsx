@@ -20,29 +20,13 @@ interface LeaderboardEntry {
   gender?: string
 }
 
-const ANNOUNCEMENTS = [
-  {
-    id: 1,
-    tag: 'Event',
-    title: 'Spring Season Kickoff',
-    date: 'Jan 15, 2025',
-    body: 'Spring season starts this week! All new members need to complete their 5 placement matches to receive a ranking. Sessions are Tuesdays & Thursdays at the Rec Center.',
-  },
-  {
-    id: 2,
-    tag: 'Tournament',
-    title: 'OU Invitational — Sign Ups Open',
-    date: 'Jan 10, 2025',
-    body: 'Our annual invitational is back. Register your 2v2 team by February 1st. Open to OU students and alumni. Cash prizes for top 3 teams.',
-  },
-  {
-    id: 3,
-    tag: 'Update',
-    title: 'ELO System Now Live',
-    date: 'Jan 5, 2025',
-    body: 'Our new ELO ranking system is live. Rankings update in real time after every match. Check your profile to see your current ELO and season stats.',
-  },
-]
+interface Announcement {
+  id: string;
+  type: 'tournament' | 'update' | 'event' | 'general';
+  title: string;
+  body: string;
+  date: string;
+}
 
 // ─── Scroll reveal hook ───────────────────────────────────────────────────────
 function useScrollReveal() {
@@ -388,10 +372,20 @@ function About() {
 
 // ─── Announcements ────────────────────────────────────────────────────────────
 function Announcements() {
-  const tagColors = {
-    Event:      { bg: 'rgba(255,184,28,0.1)',   text: '#c98a00' },
-    Tournament: { bg: 'rgba(99,102,241,0.08)',  text: '#6366f1' },
-    Update:     { bg: 'rgba(34,197,94,0.08)',   text: '#16a34a' },
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+
+  useEffect(() => {
+    apiFetch('/api/announcements')
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setAnnouncements(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  const tagColors: Record<string, { bg: string; text: string }> = {
+    tournament: { bg: 'rgba(99,102,241,0.08)',  text: '#6366f1' },
+    update:     { bg: 'rgba(34,197,94,0.08)',   text: '#16a34a' },
+    event:      { bg: 'rgba(255,184,28,0.1)',   text: '#c98a00' },
+    general:    { bg: 'rgba(156,163,175,0.12)', text: '#6b7280' },
   }
 
   return (
@@ -404,7 +398,9 @@ function Announcements() {
         </div>
 
         <div className="space-y-4">
-          {ANNOUNCEMENTS.map((a, i) => (
+          {announcements.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-8">No announcements right now — check back soon.</p>
+          ) : announcements.map((a, i) => (
             <div key={a.id}
               className="animate-on-scroll bg-white rounded-2xl p-6 border border-gray-100 transition-all duration-200 hover:border-gray-200 hover:shadow-sm cursor-pointer group"
               style={{ transitionDelay: `${i * 0.1}s` }}>
@@ -412,10 +408,14 @@ function Announcements() {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-3">
                     <span className="text-xs font-medium px-2.5 py-1 rounded-full"
-                      style={{ backgroundColor: tagColors[a.tag]?.bg, color: tagColors[a.tag]?.text }}>
-                      {a.tag}
+                      style={{ backgroundColor: tagColors[a.type]?.bg, color: tagColors[a.type]?.text }}>
+                      {a.type.charAt(0).toUpperCase() + a.type.slice(1)}
                     </span>
-                    <span className="text-xs text-gray-400">{a.date}</span>
+                    {a.type === 'tournament' && (
+                      <span className="text-xs text-gray-400">
+                        {new Date(a.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-gray-900 font-semibold mb-2 group-hover:text-[#FFB81C] transition-colors">{a.title}</h3>
                   <p className="text-gray-500 text-sm leading-relaxed">{a.body}</p>
@@ -431,29 +431,31 @@ function Announcements() {
 }
 
 // ─── Gallery ──────────────────────────────────────────────────────────────────
-const GALLERY_IMAGES = [
-  { src: '/gallery/photo-1.jpg', alt: 'Player serving at a roundnet match' },
-  { src: '/gallery/photo-2.jpg', alt: 'Player celebrating on the field' },
-  { src: '/gallery/photo-3.jpg', alt: 'OU Roundnet team photo at tournament' },
-  { src: '/gallery/photo-4.jpg', alt: 'Team huddle at night practice' },
-  { src: '/gallery/photo-5.jpg', alt: 'Player showing off the Grizzly Roundnet jersey' },
-  { src: '/gallery/photo-6.jpg', alt: 'Club members at indoor practice session' },
-  { src: '/gallery/photo-7.jpg', alt: 'OU Roundnet Club in action' },
-  { src: '/gallery/photo-8.jpg', alt: 'Player ready at the net indoors' },
-]
-
 function Gallery() {
+  const [images, setImages] = useState<{ src: string; alt: string }[]>([]);
+
+  useEffect(() => {
+    apiFetch('/api/gallery')
+      .then(r => r.ok ? r.json() : [])
+      .then((data: { url: string; alt_text: string }[]) => {
+        setImages(Array.isArray(data) ? data.map(img => ({ src: img.url, alt: img.alt_text })) : []);
+      })
+      .catch(() => {});
+  }, []);
+
+  if (images.length === 0) return null;
+
   return (
     <section id="gallery" className="bg-white">
-      <div className="max-w-4xl mx-auto px-6 pt-24 pb-4 animate-on-scroll text-center">
+      <div className="max-w-4xl mx-auto px-6 pt-24 pb-4 text-center">
         <p className="text-xs tracking-[0.3em] uppercase mb-3" style={{ color: '#FFB81C' }}>Club Life</p>
         <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Gallery</h2>
       </div>
       <HeroSection
         title="Life at OU Roundnet"
         subtitle="From weekly sessions to tournaments — here's a glimpse of our club in action."
-        images={GALLERY_IMAGES}
-        className="animate-on-scroll pt-0"
+        images={images}
+        className="pt-0"
       />
     </section>
   )

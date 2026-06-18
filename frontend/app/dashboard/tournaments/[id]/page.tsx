@@ -19,6 +19,7 @@ interface BracketMatch {
   id: string;
   bracket_round: number;
   bracket_slot: number;
+  rr_pool: number | null;
   status: 'pending' | 'approved' | 'disputed' | 'cancelled';
   winning_team: 1 | 2 | null;
   score_team1: number | null;
@@ -34,16 +35,33 @@ interface BracketRound {
   matches: BracketMatch[];
 }
 
+interface RRStanding {
+  teamId: string;
+  name: string;
+  wins: number;
+  losses: number;
+  pool: number;
+}
+
+interface RRPool {
+  pool: number;
+  label: string;
+  matches: BracketMatch[];
+  standings: RRStanding[];
+}
+
 interface Tournament {
   id: string;
   name: string;
   status: string;
   affects_elo: boolean;
+  tournament_type: 'bracket' | 'round_robin';
 }
 
 interface BracketData {
   tournament: Tournament;
   rounds: BracketRound[];
+  pools: RRPool[];
 }
 
 interface Me {
@@ -351,29 +369,33 @@ export default function TournamentBracketPage() {
   };
 
   const tournament = bracket?.tournament;
-  const rounds = bracket?.rounds ?? [];
+  const rounds     = bracket?.rounds ?? [];
+  const pools      = bracket?.pools  ?? [];
+  const isRR       = tournament?.tournament_type === 'round_robin';
 
-  // Separate 3rd-place round (if round number > max standard round)
-  const maxRound = rounds.length > 0 ? Math.max(...rounds.map(r => r.round)) : 0;
-  // A 3rd-place match sits at the same level as the Final but separate
-  const standardRounds = rounds.filter(r => r.matches.length > 1 || r.round < maxRound);
-  const finalRound     = rounds.find(r => r.round === maxRound && r.matches.length === 1 &&
-    r.matches[0].bracket_slot === 0);
-  const thirdRound     = rounds.find(r => r.round === maxRound && r.matches.some(m => m.bracket_slot === 1));
-
+  // Bracket-mode derived state
+  const maxRound       = rounds.length > 0 ? Math.max(...rounds.map(r => r.round)) : 0;
+  const standardRounds = rounds.filter(r => r.round < 99 && (r.matches.length > 1 || r.round < maxRound));
+  const finalRound     = rounds.find(r => r.round < 99 && r.round === maxRound && r.matches.length === 1 && r.matches[0].bracket_slot === 0);
+  const thirdRound     = rounds.find(r => r.round < 99 && r.round === maxRound && r.matches.some(m => m.bracket_slot === 1));
+  const rrFinalsRound  = rounds.find(r => r.round === 99); // RR finals stored at round 99
   const totalStdRounds = maxRound;
+
+  // RR: all pool matches flat (for legend count)
+  const allPoolMatches = pools.flatMap(p => p.matches);
+  const isEmpty = isRR ? (allPoolMatches.length === 0 && !rrFinalsRound) : rounds.length === 0;
 
   return (
     <DashboardShell
-      title={tournament?.name ?? 'Tournament Bracket'}
-      subtitle={tournament ? `${tournament.affects_elo ? 'Ranked' : 'Casual'} tournament bracket` : ''}
+      title={tournament?.name ?? (isRR ? 'Tournament Standings' : 'Tournament Bracket')}
+      subtitle={tournament ? `${tournament.affects_elo ? 'Ranked' : 'Casual'} · ${isRR ? 'Round Robin' : 'Bracket'}` : ''}
       loading={!userLoaded || !authLoaded || loading}
       displayName={me ? `${me.first_name} ${me.last_name}` : undefined}
       width="full"
       headerRight={
         <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-[#FFB81C]/10 text-[#b38200] border border-[#FFB81C]/30">
           <Trophy className="w-3.5 h-3.5" />
-          {tournament?.status?.replace('_', ' ')}
+          {tournament?.status?.replace(/_/g, ' ')}
         </span>
       }
     >
@@ -383,67 +405,150 @@ export default function TournamentBracketPage() {
         </div>
       )}
 
-      {rounds.length === 0 && !loading && (
+      {isEmpty && !loading && (
         <div className="text-center py-20 text-gray-400">
           <Trophy className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No bracket matches yet.</p>
-          <p className="text-xs mt-1">An admin will generate the bracket once teams are formed.</p>
+          <p className="text-sm">{isRR ? 'No schedule generated yet.' : 'No bracket matches yet.'}</p>
+          <p className="text-xs mt-1">An admin will generate the {isRR ? 'schedule' : 'bracket'} once teams are formed.</p>
         </div>
       )}
 
-      {rounds.length > 0 && (
-        <div className="overflow-x-auto pb-6">
-          <div className="flex gap-10 items-start min-w-max px-2">
-            {/* Standard rounds (R16, QF, SF…) */}
-            {standardRounds.map(r => (
-              <BracketColumn
-                key={r.round}
-                label={getRoundLabel(r.round, totalStdRounds)}
-                matches={r.matches}
-                myId={me?.id ?? null}
-                onSubmit={setModalMatch}
-              />
-            ))}
-
-            {/* Final + 3rd place stacked */}
-            {(finalRound || thirdRound) && (
-              <div className="flex flex-col gap-10">
-                {finalRound && (
-                  <div>
-                    <p className="text-sm font-semibold text-gray-500 mb-4 text-center">
-                      🏆 Final
-                    </p>
-                    <div className="flex flex-col gap-6 items-center">
-                      {finalRound.matches.filter(m => m.bracket_slot === 0).map(m => (
-                        <MatchCard key={m.id} match={m} myId={me?.id ?? null} onSubmit={setModalMatch} />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {thirdRound && (
-                  <div>
-                    <p className="text-sm font-semibold text-gray-500 mb-4 text-center">
-                      🥉 3rd Place
-                    </p>
-                    <div className="flex flex-col gap-6 items-center">
-                      {thirdRound.matches.filter(m => m.bracket_slot === 1).map(m => (
-                        <MatchCard key={m.id} match={m} myId={me?.id ?? null} onSubmit={setModalMatch} />
-                      ))}
-                    </div>
-                  </div>
-                )}
+      {/* ── Round Robin View ────────────────────────────────────────────────── */}
+      {isRR && !isEmpty && (
+        <div className="space-y-8">
+          {pools.map(pool => (
+            <section key={pool.pool} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              {/* Pool header */}
+              <div className="px-5 py-3 border-b border-gray-50 flex items-center gap-2" style={{ backgroundColor: '#0a0a0a' }}>
+                <span className="text-sm font-bold" style={{ color: '#FFB81C' }}>Pool {pool.label}</span>
+                <span className="text-xs text-gray-500">{pool.matches.length} match{pool.matches.length !== 1 ? 'es' : ''}</span>
               </div>
-            )}
-          </div>
+
+              <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Standings table */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Standings</p>
+                  <div className="rounded-xl border border-gray-100 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">#</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500">Team</th>
+                          <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500">W</th>
+                          <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500">L</th>
+                          <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500">Win%</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pool.standings.length === 0 ? (
+                          <tr><td colSpan={5} className="px-3 py-4 text-center text-xs text-gray-400">No results yet</td></tr>
+                        ) : pool.standings.map((s, idx) => {
+                          const played  = s.wins + s.losses;
+                          const winPct  = played > 0 ? Math.round((s.wins / played) * 100) : 0;
+                          const isLeader = idx === 0 && s.wins > 0;
+                          return (
+                            <tr key={s.teamId} className={`border-t border-gray-50 ${isLeader ? 'bg-[#fffbf0]' : ''}`}>
+                              <td className="px-3 py-2.5 text-xs text-gray-400 font-medium">
+                                {isLeader ? '🥇' : idx + 1}
+                              </td>
+                              <td className="px-3 py-2.5 font-medium text-gray-800 text-xs">{s.name}</td>
+                              <td className="px-3 py-2.5 text-center font-bold text-green-600 text-xs">{s.wins}</td>
+                              <td className="px-3 py-2.5 text-center text-gray-400 text-xs">{s.losses}</td>
+                              <td className="px-3 py-2.5 text-center text-xs" style={{ color: '#FFB81C', fontWeight: 600 }}>{winPct}%</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Match cards */}
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-3">Matches</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {pool.matches.map(m => (
+                      <MatchCard key={m.id} match={m} myId={me?.id ?? null} onSubmit={setModalMatch} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+          ))}
+
+          {/* Finals match (if generated) */}
+          {rrFinalsRound && rrFinalsRound.matches.length > 0 && (
+            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-gray-50 flex items-center gap-2" style={{ backgroundColor: '#0a0a0a' }}>
+                <span className="text-sm font-bold" style={{ color: '#FFB81C' }}>🏆 Finals</span>
+                <span className="text-xs text-gray-500">Pool A winner vs Pool B winner</span>
+              </div>
+              <div className="p-5 flex justify-center">
+                {rrFinalsRound.matches.map(m => (
+                  <MatchCard key={m.id} match={m} myId={me?.id ?? null} onSubmit={setModalMatch} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {me && allPoolMatches.length > 0 && (
+            <p className="text-xs text-gray-400">
+              <span className="inline-block w-2.5 h-2.5 rounded-sm border border-[#FFB81C] bg-[#FFB81C]/10 mr-1.5 align-middle" />
+              Highlighted matches include you. Click <strong>Submit Score</strong> on a pending match to report the result.
+            </p>
+          )}
         </div>
       )}
 
-      {/* Legend */}
-      {me && rounds.length > 0 && (
-        <p className="text-xs text-gray-400 mt-2">
-          <span className="inline-block w-2.5 h-2.5 rounded-sm border border-[#FFB81C] bg-[#FFB81C]/10 mr-1.5 align-middle" />
-          Highlighted matches include you. Click <strong>Submit Score</strong> on a pending match to report the result.
-        </p>
+      {/* ── Bracket View ────────────────────────────────────────────────────── */}
+      {!isRR && rounds.length > 0 && (
+        <>
+          <div className="overflow-x-auto pb-6">
+            <div className="flex gap-10 items-start min-w-max px-2">
+              {standardRounds.map(r => (
+                <BracketColumn
+                  key={r.round}
+                  label={getRoundLabel(r.round, totalStdRounds)}
+                  matches={r.matches}
+                  myId={me?.id ?? null}
+                  onSubmit={setModalMatch}
+                />
+              ))}
+
+              {(finalRound || thirdRound) && (
+                <div className="flex flex-col gap-10">
+                  {finalRound && (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-500 mb-4 text-center">🏆 Final</p>
+                      <div className="flex flex-col gap-6 items-center">
+                        {finalRound.matches.filter(m => m.bracket_slot === 0).map(m => (
+                          <MatchCard key={m.id} match={m} myId={me?.id ?? null} onSubmit={setModalMatch} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {thirdRound && (
+                    <div>
+                      <p className="text-sm font-semibold text-gray-500 mb-4 text-center">🥉 3rd Place</p>
+                      <div className="flex flex-col gap-6 items-center">
+                        {thirdRound.matches.filter(m => m.bracket_slot === 1).map(m => (
+                          <MatchCard key={m.id} match={m} myId={me?.id ?? null} onSubmit={setModalMatch} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {me && (
+            <p className="text-xs text-gray-400 mt-2">
+              <span className="inline-block w-2.5 h-2.5 rounded-sm border border-[#FFB81C] bg-[#FFB81C]/10 mr-1.5 align-middle" />
+              Highlighted matches include you. Click <strong>Submit Score</strong> on a pending match to report the result.
+            </p>
+          )}
+        </>
       )}
 
       {/* Modal */}

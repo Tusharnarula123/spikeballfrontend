@@ -8,6 +8,8 @@ import { Trophy, Swords, Star, TrendingUp, User, ShieldCheck, Pencil, X, Check, 
 import { apiFetch } from '@/lib/api';
 import { useApi } from '@/hooks/use-api';
 
+const PLACEMENT_MATCHES = 5;
+
 interface Player {
   id: string;
   first_name: string;
@@ -16,6 +18,7 @@ interface Player {
   age: number;
   gender: string;
   current_elo: number;
+  placement_matches_played: number;
   status: string;
   created_at: string;
   university?: string;
@@ -332,11 +335,13 @@ export default function ProfilePage() {
   const fullName    = `${firstName} ${lastName}`.trim();
   const gender      = genderLabel(player?.gender);
   const age         = player?.age ?? '—';
-  const university  = player?.university ?? 'Oakland University';
+  const university  = player?.university ?? '—';
   const memberSince = player?.created_at
     ? new Date(player.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : '—';
-  const currentElo  = player?.current_elo ?? 1200;
+  const placementsPlayed = player?.placement_matches_played ?? 0;
+  const inPlacement      = placementsPlayed < PLACEMENT_MATCHES;
+  const currentElo       = player?.current_elo ?? 1000;
 
   const sWins       = seasonStats?.wins   ?? 0;
   const sLosses     = seasonStats?.losses ?? 0;
@@ -423,9 +428,20 @@ export default function ProfilePage() {
 
         {/* ── Current Season ── */}
         <SectionTitle>Current Season</SectionTitle>
+        {inPlacement && (
+          <div className="bg-[#111] border border-[#FFB81C]/20 rounded-xl px-4 py-3 mb-3 flex items-center gap-3">
+            <div className="w-2 h-2 rounded-full bg-[#FFB81C] flex-shrink-0" />
+            <p className="text-[#FFB81C] text-xs font-semibold">
+              Placement — {placementsPlayed} / {PLACEMENT_MATCHES} matches completed
+            </p>
+            <p className="text-white/30 text-xs ml-auto">ELO &amp; rank visible after placement</p>
+          </div>
+        )}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <StatCard label="ELO"        value={currentElo}   gold />
-          <StatCard label="Rank"       value={sRank !== '—' ? `#${sRank}` : '—'} />
+          <StatCard label="ELO"  value={inPlacement ? '—' : currentElo} gold={!inPlacement}
+            sub={inPlacement ? `${placementsPlayed}/${PLACEMENT_MATCHES} placement matches` : undefined} />
+          <StatCard label="Rank" value={inPlacement ? '—' : (sRank !== '—' ? `#${sRank}` : '—')}
+            sub={inPlacement ? 'Unranked during placement' : undefined} />
           <StatCard label="Record"     value={`${sWins} — ${sLosses}`} sub="Wins — Losses" />
           <StatCard label="Win Rate"   value={`${sWinPct}%`} />
           <StatCard label="Matches Played" value={sMatches} />
@@ -438,7 +454,8 @@ export default function ProfilePage() {
         {/* ── All-Time ── */}
         <SectionTitle>All-Time</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <StatCard label="Peak ELO"       value={peakElo}     gold />
+          <StatCard label="Peak ELO" value={inPlacement ? '—' : peakElo} gold={!inPlacement}
+            sub={inPlacement ? 'Available after placement' : undefined} />
           <StatCard label="Seasons Played" value={seasonsPlayed} />
           <StatCard label="Record"         value={`${aWins} — ${aLosses}`} sub="Wins — Losses" />
           <StatCard label="Win Rate"       value={`${aWinPct}%`} />

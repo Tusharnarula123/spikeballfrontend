@@ -22,12 +22,15 @@ interface Tournament {
   name: string;
   status: string;
   affects_elo: boolean;
+  tournament_type?: 'bracket' | 'round_robin';
 }
 
 interface BracketMatch {
   id: string;
-  bracket_round: number;
-  bracket_slot: number;
+  bracket_round: number | null;
+  bracket_slot: number | null;
+  rr_pool: number | null;
+  _poolLabel?: string; // injected client-side for RR pool matches
   status: 'pending' | 'approved' | 'disputed' | 'cancelled';
   winning_team: 1 | 2 | null;
   score_team1: number | null;
@@ -157,15 +160,27 @@ export default function SubmitScorePage() {
     load();
   }, [userLoaded, authLoaded, fetchApi]);
 
-  // Load matches for selected tournament
+  // Load matches for selected tournament (works for both bracket and RR)
   const loadBracket = useCallback(async (tournamentId: string) => {
     setBracketLoading(true);
     try {
       const res = await fetchApi(`/api/tournaments/${tournamentId}/bracket`);
       if (res.ok) {
         const data = await res.json();
-        const allMatches: BracketMatch[] = (data.rounds ?? []).flatMap((r: { matches: BracketMatch[] }) => r.matches);
-        setBracketMatches(allMatches);
+        // Bracket rounds (or RR finals at round 99)
+        const fromRounds: BracketMatch[] = (data.rounds ?? []).flatMap(
+          (r: { matches: BracketMatch[] }) => r.matches,
+        );
+        // RR pool matches — inject _poolLabel for display
+        const fromPools: BracketMatch[] = (data.pools ?? []).flatMap(
+          (p: { label: string; matches: BracketMatch[] }) =>
+            p.matches.map((m: BracketMatch) => ({ ...m, _poolLabel: p.label })),
+        );
+        setBracketMatches([...fromRounds, ...fromPools]);
+        // Persist tournament_type onto the selectedTournament so Step 2 can use it
+        if (data.tournament?.tournament_type) {
+          setSelectedTournament(prev => prev ? { ...prev, tournament_type: data.tournament.tournament_type } : prev);
+        }
       }
     } finally {
       setBracketLoading(false);
@@ -461,8 +476,16 @@ export default function SubmitScorePage() {
                 {!bracketLoading && myTournamentMatches.length > 0 && (
                   <div className="space-y-2">
                     {myTournamentMatches.map(m => {
-                      const maxRound = Math.max(...bracketMatches.map(x => x.bracket_round));
-                      const label = roundLabel(m.bracket_round, maxRound);
+                      const isRRMatch = m._poolLabel != null;
+                      const maxBracketRound = bracketMatches
+                        .filter(x => x.bracket_round !== null && x.bracket_round !== 99)
+                        .map(x => x.bracket_round as number);
+                      const maxRound = maxBracketRound.length > 0 ? Math.max(...maxBracketRound) : 1;
+                      const label = isRRMatch
+                        ? `Pool ${m._poolLabel}`
+                        : m.bracket_round === 99
+                          ? 'Finals'
+                          : roundLabel(m.bracket_round as number, maxRound);
                       const t1 = teamLabel(m.team1_player1, m.team1_player2);
                       const t2 = teamLabel(m.team2_player1, m.team2_player2);
                       const myTeam = me && [m.team1_player1.id, m.team1_player2.id].includes(me.id) ? 1 : 2;

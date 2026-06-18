@@ -235,12 +235,12 @@ function SignupPage() {
         }} />
 
         {/* Logo */}
-        <div className="relative z-10 flex items-center gap-3">
+        <Link href="/" className="relative z-10 flex items-center gap-3 hover:opacity-80 transition-opacity">
           <Image src="/logo.svg" alt="OU Roundnet" width={40} height={40} />
           <span className="text-base font-semibold tracking-wide">
             OU <span style={{ color: "#FFB81C" }}>Roundnet</span>
           </span>
-        </div>
+        </Link>
 
         {/* Characters */}
         <div className="relative z-10 flex items-end justify-center h-[440px]">
@@ -372,10 +372,10 @@ function SignupPage() {
         <div className="w-full max-w-[460px]">
 
           {/* Mobile logo */}
-          <div className="lg:hidden flex items-center justify-center gap-3 mb-10">
+          <Link href="/" className="lg:hidden flex items-center justify-center gap-3 mb-10 hover:opacity-80 transition-opacity">
             <Image src="/logo.svg" alt="OU Roundnet" width={36} height={36} />
             <span className="font-semibold text-gray-900">OU <span style={{ color: "#FFB81C" }}>Roundnet</span></span>
-          </div>
+          </Link>
 
           {/* Header */}
           <div className="text-center mb-8">

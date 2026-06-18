@@ -16,6 +16,7 @@ import {
   ClipboardCheck,
   Users,
   CalendarRange,
+  ImageIcon,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -44,6 +45,7 @@ const adminNavigationItems: NavigationItem[] = [
   { id: 'admin-approvals',   name: 'Approve Scores', icon: ClipboardCheck,href: '/dashboard/admin/approvals' },
   { id: 'admin-tournaments', name: 'Tournaments',    icon: Trophy,        href: '/dashboard/admin/tournaments' },
   { id: 'admin-seasons',     name: 'Seasons',        icon: CalendarRange, href: '/dashboard/admin/seasons' },
+  { id: 'admin-gallery',     name: 'Gallery',        icon: ImageIcon,     href: '/dashboard/admin/gallery' },
 ];
 
 interface SidebarProps {
@@ -145,11 +147,11 @@ export function Sidebar({
         {/* Logo / brand */}
         <div className="flex items-center p-4 border-b border-[#FFB81C]/20 flex-shrink-0 gap-2">
           {isCollapsed ? (
-            <div className="w-9 h-9 flex items-center justify-center mx-auto">
+            <Link href="/" className="w-9 h-9 flex items-center justify-center mx-auto hover:opacity-80 transition-opacity">
               <Image src="/logo.svg" alt="OU Roundnet" width={36} height={36} />
-            </div>
+            </Link>
           ) : (
-            <div className="flex items-center gap-2.5 flex-1 min-w-0">
+            <Link href="/" className="flex items-center gap-2.5 flex-1 min-w-0 hover:opacity-80 transition-opacity">
               <div className="w-9 h-9 flex-shrink-0">
                 <Image src="/logo.svg" alt="OU Roundnet" width={36} height={36} />
               </div>
@@ -157,7 +159,7 @@ export function Sidebar({
                 <p className="text-white font-semibold text-sm leading-none">OU Roundnet</p>
                 <p className="text-[#FFB81C]/50 text-xs mt-0.5">Club Portal</p>
               </div>
-            </div>
+            </Link>
           )}
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}

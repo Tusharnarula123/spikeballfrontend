@@ -41,6 +41,7 @@ interface Announcement {
   content: string;
   date: string;
   type: 'tournament' | 'update' | 'event' | 'general';
+  tournamentId?: string | null;
 }
 
 const TYPE_STYLES: Record<Announcement['type'], string> = {
@@ -64,8 +65,17 @@ export default function DashboardPage() {
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [seasonName, setSeasonName] = useState<string | null>(null);
 
   const avatarMenuRef = useRef<HTMLDivElement>(null);
+
+  // Fetch active season name
+  useEffect(() => {
+    apiFetch('/api/seasons/active')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.season?.name) setSeasonName(data.season.name); })
+      .catch(() => {});
+  }, []);
 
   // Fetch real leaderboard
   useEffect(() => {
@@ -83,7 +93,14 @@ export default function DashboardPage() {
       .then((data: { id: string; type: Announcement['type']; title: string; body: string; date: string }[]) => {
         setAnnouncements(
           Array.isArray(data)
-            ? data.map(a => ({ id: a.id, title: a.title, content: a.body, date: a.date, type: a.type }))
+            ? data.map(a => ({
+                id: a.id,
+                title: a.title,
+                content: a.body,
+                date: a.date,
+                type: a.type,
+                tournamentId: a.id.startsWith('tournament-') ? a.id.replace('tournament-', '') : null,
+              }))
             : [],
         );
       })
@@ -158,7 +175,7 @@ export default function DashboardPage() {
             <p className="text-sm text-gray-400 mt-0.5">
               {myEntry
                 ? `Rank #${myEntry.rank} · ${myEntry.current_elo} ELO · ${myEntry.wins}W ${myEntry.losses}L`
-                : 'Complete 10 placement matches to appear on the leaderboard'}
+                : 'Complete 5 placement matches to appear on the leaderboard'}
             </p>
           </div>
 
@@ -219,7 +236,7 @@ export default function DashboardPage() {
                 {/* Header row matching homepage style */}
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
                   <div>
-                    <p className="text-xs font-medium tracking-widest uppercase" style={{ color: '#FFB81C' }}>Season 2025</p>
+                    <p className="text-xs font-medium tracking-widest uppercase" style={{ color: '#FFB81C' }}>{seasonName ?? 'Leaderboard'}</p>
                     <h2 className="text-xl font-bold text-gray-900">Leaderboard</h2>
                   </div>
                   <div className="flex gap-2">
@@ -318,14 +335,14 @@ export default function DashboardPage() {
                   {
                     icon: Zap,
                     title: 'Starting ELO',
-                    desc: 'Every player begins at 1,000 ELO. The more you play, the closer your rating gets to your true skill level.',
+                    desc: 'Every player begins with a provisional ELO rating. The more you play, the closer your rating gets to your true skill level.',
                     bg: 'bg-amber-50 border-amber-200',
                     iconColor: 'text-amber-500',
                   },
                   {
                     icon: TrendingUp,
                     title: 'Placement Phase',
-                    desc: 'Your first 10 matches use K = 60 (high volatility). This lets your rating settle to its real level quickly.',
+                    desc: 'Your first 5 matches use K = 60 (high volatility). This lets your rating settle to its real level quickly.',
                     bg: 'bg-blue-50 border-blue-200',
                     iconColor: 'text-blue-500',
                   },
@@ -373,23 +390,42 @@ export default function DashboardPage() {
                     No announcements right now.
                   </div>
                 )}
-                {announcements.map((ann) => (
-                  <div
-                    key={ann.id}
-                    className="flex-shrink-0 w-72 bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col"
-                  >
-                    <span className={`self-start text-xs font-medium px-2.5 py-0.5 rounded-full border mb-3 ${TYPE_STYLES[ann.type]}`}>
-                      {ann.type.charAt(0).toUpperCase() + ann.type.slice(1)}
-                    </span>
-                    <h3 className="font-semibold text-[#0a0a0a] text-sm mb-2 leading-snug">{ann.title}</h3>
-                    <p className="text-xs text-gray-500 leading-relaxed flex-1">{ann.content}</p>
-                    <p className="text-xs text-gray-300 mt-3">
-                      {new Date(ann.date).toLocaleDateString('en-US', {
-                        month: 'short', day: 'numeric', year: 'numeric',
-                      })}
-                    </p>
-                  </div>
-                ))}
+                {announcements.map((ann) => {
+                  const isTournament = ann.type === 'tournament';
+                  const cardContent = (
+                    <>
+                      <span className={`self-start text-xs font-medium px-2.5 py-0.5 rounded-full border mb-3 ${TYPE_STYLES[ann.type]}`}>
+                        {ann.type.charAt(0).toUpperCase() + ann.type.slice(1)}
+                      </span>
+                      <h3 className="font-semibold text-[#0a0a0a] text-sm mb-2 leading-snug">{ann.title}</h3>
+                      <p className="text-xs text-gray-500 leading-relaxed flex-1">{ann.content}</p>
+                      {isTournament && (
+                        <p className="text-xs text-gray-300 mt-3">
+                          {new Date(ann.date).toLocaleDateString('en-US', {
+                            month: 'short', day: 'numeric', year: 'numeric',
+                          })}
+                        </p>
+                      )}
+                    </>
+                  );
+
+                  return isTournament && ann.tournamentId ? (
+                    <a
+                      key={ann.id}
+                      href={`/dashboard/register`}
+                      className="flex-shrink-0 w-72 bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col hover:border-[#FFB81C] hover:shadow-md transition-all cursor-pointer"
+                    >
+                      {cardContent}
+                    </a>
+                  ) : (
+                    <div
+                      key={ann.id}
+                      className="flex-shrink-0 w-72 bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col"
+                    >
+                      {cardContent}
+                    </div>
+                  );
+                })}
               </div>
             </section>
 

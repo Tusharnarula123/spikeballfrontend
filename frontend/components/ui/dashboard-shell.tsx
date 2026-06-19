@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser, useClerk } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/ui/modern-side-bar';
-import { Bell, Check } from 'lucide-react';
+import { Bell, Check, X, Loader2 } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 
 // ─── Notification Bell ────────────────────────────────────────────────────────
@@ -17,6 +17,7 @@ interface Notification {
   link?: string;
   is_read: boolean;
   created_at: string;
+  data?: { tournamentId?: string; inviterId?: string; tournamentName?: string } | null;
 }
 
 function timeAgo(iso: string): string {
@@ -34,6 +35,8 @@ function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [respondingId, setRespondingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   const loadCount = useCallback(async () => {
@@ -74,9 +77,13 @@ function NotificationBell() {
   };
 
   const markAllRead = async () => {
-    await fetchApi('/api/notifications', { method: 'PATCH' });
-    setNotifications(n => n.map(x => ({ ...x, is_read: true })));
+    await fetchApi('/api/notifications/read-all', { method: 'PATCH' });
+    // Clear read notifications out of the list — "mark all read" doubles as
+    // "clear the list". Unresponded invites are kept server-side, so reload
+    // from the server rather than blindly emptying local state.
+    await fetchApi('/api/notifications/read', { method: 'DELETE' });
     setUnread(0);
+    await loadNotifications();
   };
 
   const markOneRead = async (id: string, link?: string) => {
@@ -84,6 +91,43 @@ function NotificationBell() {
     setNotifications(n => n.map(x => x.id === id ? { ...x, is_read: true } : x));
     setUnread(c => Math.max(0, c - 1));
     if (link) window.location.href = link;
+  };
+
+  const respondToInvite = async (n: Notification, accept: boolean) => {
+    const tournamentId = n.data?.tournamentId;
+    const inviterId = n.data?.inviterId;
+    if (!tournamentId || !inviterId) return;
+
+    setRespondingId(n.id);
+    try {
+      const res = await fetchApi(`/api/tournaments/${tournamentId}/${accept ? 'accept-invite' : 'decline-invite'}`, {
+        method: 'POST',
+        body: JSON.stringify({ inviterId }),
+      });
+      if (res.ok) {
+        // Once acted on, the invite notification has served its purpose —
+        // remove it from the list entirely rather than leaving it sitting
+        // there with a "✓ accepted" label.
+        await fetchApi(`/api/notifications/${n.id}`, { method: 'DELETE' });
+        setNotifications(list => list.filter(x => x.id !== n.id));
+        if (!n.is_read) setUnread(c => Math.max(0, c - 1));
+      }
+    } finally {
+      setRespondingId(null);
+    }
+  };
+
+  const deleteNotification = async (n: Notification) => {
+    setDeletingId(n.id);
+    try {
+      const res = await fetchApi(`/api/notifications/${n.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setNotifications(list => list.filter(x => x.id !== n.id));
+        if (!n.is_read) setUnread(c => Math.max(0, c - 1));
+      }
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   return (
@@ -125,28 +169,69 @@ function NotificationBell() {
                 <p className="text-gray-400 text-xs">No notifications yet</p>
               </div>
             ) : (
-              notifications.map(n => (
-                <button
-                  key={n.id}
-                  onClick={() => markOneRead(n.id, n.link)}
-                  className={`w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors ${!n.is_read ? 'bg-[#fffbf0]' : ''}`}
-                >
-                  <div className="flex items-start gap-2.5">
-                    {!n.is_read && (
-                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#FFB81C] flex-shrink-0" />
+              notifications.map(n => {
+                const isInvite = n.type === 'partner_invite' && !!n.data?.tournamentId && !!n.data?.inviterId;
+                const isBusy = respondingId === n.id;
+                const isDeleting = deletingId === n.id;
+
+                return (
+                  <div
+                    key={n.id}
+                    className={`group relative w-full text-left px-4 py-3 transition-colors ${!n.is_read ? 'bg-[#fffbf0]' : ''}`}
+                  >
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteNotification(n); }}
+                      disabled={isDeleting}
+                      aria-label="Dismiss notification"
+                      className="absolute top-2.5 right-3 p-1 rounded-full text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                    >
+                      {isDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                    </button>
+                    <button
+                      onClick={() => markOneRead(n.id, isInvite ? undefined : n.link)}
+                      className="w-full text-left hover:opacity-80 transition-opacity pr-5"
+                    >
+                      <div className="flex items-start gap-2.5">
+                        {!n.is_read && (
+                          <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[#FFB81C] flex-shrink-0" />
+                        )}
+                        <div className={`min-w-0 ${n.is_read ? 'pl-4' : ''}`}>
+                          <p className={`text-xs font-semibold leading-snug ${n.is_read ? 'text-gray-400' : 'text-gray-900'}`}>
+                            {n.title}
+                          </p>
+                          <p className="text-gray-400 text-[11px] mt-0.5 leading-snug line-clamp-2">
+                            {n.body}
+                          </p>
+                          <p className="text-gray-300 text-[10px] mt-1">{timeAgo(n.created_at)}</p>
+                        </div>
+                      </div>
+                    </button>
+
+                    {isInvite && (
+                      <div className="mt-2 ml-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); respondToInvite(n, true); }}
+                            disabled={isBusy}
+                            className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[#FFB81C] text-[#0a0a0a] hover:bg-[#e6a418] transition-colors disabled:opacity-60 flex items-center gap-1"
+                          >
+                            {isBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                            Accept
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); respondToInvite(n, false); }}
+                            disabled={isBusy}
+                            className="text-[11px] font-semibold px-2.5 py-1 rounded-full border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors disabled:opacity-60 flex items-center gap-1"
+                          >
+                            <X className="w-3 h-3" />
+                            Decline
+                          </button>
+                        </div>
+                      </div>
                     )}
-                    <div className={`min-w-0 ${n.is_read ? 'pl-4' : ''}`}>
-                      <p className={`text-xs font-semibold leading-snug ${n.is_read ? 'text-gray-400' : 'text-gray-900'}`}>
-                        {n.title}
-                      </p>
-                      <p className="text-gray-400 text-[11px] mt-0.5 leading-snug line-clamp-2">
-                        {n.body}
-                      </p>
-                      <p className="text-gray-300 text-[10px] mt-1">{timeAgo(n.created_at)}</p>
-                    </div>
                   </div>
-                </button>
-              ))
+                );
+              })
             )}
           </div>
         </div>

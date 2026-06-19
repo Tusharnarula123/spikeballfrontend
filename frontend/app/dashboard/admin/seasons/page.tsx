@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { DashboardShell, SectionHeading, Card, EmptyState, Chip } from '@/components/ui/dashboard-shell';
 import {
   CalendarRange, Plus, Loader2, Zap, CheckCircle2, Play,
-  AlertTriangle, ChevronDown, ChevronUp, Leaf, Sun, Snowflake,
+  AlertTriangle, ChevronDown, ChevronUp, Leaf, Sun, Snowflake, Trash2,
 } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 import { apiFetch } from '@/lib/api';
@@ -64,6 +64,8 @@ export default function AdminSeasonsPage() {
   const [busyId, setBusyId]           = useState<string | null>(null);
   const [error, setError]             = useState<string | null>(null);
   const [expanded, setExpanded]       = useState<Set<string>>(new Set());
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId]   = useState<string | null>(null);
 
   const isAdmin = user?.publicMetadata?.role === 'admin';
 
@@ -122,6 +124,27 @@ export default function AdminSeasonsPage() {
       await refresh();
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const handleDelete = async (seasonId: string) => {
+    if (confirmDeleteId !== seasonId) {
+      setConfirmDeleteId(seasonId);
+      return;
+    }
+    setDeletingId(seasonId);
+    setError(null);
+    try {
+      const res = await fetchApi(`/api/seasons/${seasonId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setError(d.error ?? 'Failed to delete season');
+        return;
+      }
+      setConfirmDeleteId(null);
+      await refresh();
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -211,11 +234,11 @@ export default function AdminSeasonsPage() {
 
               return (
                 <Card key={s.id} className={`p-0 overflow-hidden ${activeSem ? 'ring-2 ring-[#FFB81C]/50' : ''}`}>
-                  <button
-                    onClick={() => toggleExpanded(s.id)}
-                    className="w-full flex items-center justify-between gap-3 p-5 text-left hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-full flex items-center justify-between gap-3 p-5">
+                    <button
+                      onClick={() => toggleExpanded(s.id)}
+                      className="flex items-center gap-3 min-w-0 flex-1 text-left"
+                    >
                       <div className="w-9 h-9 rounded-xl bg-[#FFB81C]/10 flex items-center justify-center flex-shrink-0">
                         <CalendarRange className="w-4 h-4 text-[#FFB81C]" />
                       </div>
@@ -235,9 +258,42 @@ export default function AdminSeasonsPage() {
                           <Zap className="w-3 h-3" /> starts at {s.starting_elo} ELO
                         </p>
                       </div>
+                    </button>
+
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {confirmDeleteId === s.id ? (
+                        <>
+                          <span className="text-xs text-red-500 font-medium hidden sm:inline">Delete season?</span>
+                          <button
+                            onClick={() => handleDelete(s.id)}
+                            disabled={deletingId === s.id}
+                            className="text-xs font-bold px-2.5 py-1.5 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-60 flex items-center gap-1"
+                          >
+                            {deletingId === s.id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                            Confirm
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteId(null)}
+                            disabled={deletingId === s.id}
+                            className="text-xs font-medium px-2.5 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleDelete(s.id)}
+                          title="Delete season"
+                          className="p-2 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button onClick={() => toggleExpanded(s.id)} className="p-1">
+                        {isOpen ? <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />}
+                      </button>
                     </div>
-                    {isOpen ? <ChevronUp className="w-4 h-4 text-gray-400 flex-shrink-0" /> : <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />}
-                  </button>
+                  </div>
 
                   {isOpen && (
                     <div className="border-t border-gray-100 divide-y divide-gray-50">

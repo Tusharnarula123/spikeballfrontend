@@ -1,6 +1,6 @@
 'use client';
 import React from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -13,6 +13,7 @@ interface HeroProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> 
 export const HeroSection = React.forwardRef<HTMLDivElement, HeroProps>(
   ({ title, subtitle, images, className, ...props }, ref) => {
     const [currentIndex, setCurrentIndex] = React.useState(0);
+    const [isLightboxOpen, setIsLightboxOpen] = React.useState(false);
     const carouselRef = React.useRef<HTMLDivElement>(null);
 
     // Drag state
@@ -38,9 +39,23 @@ export const HeroSection = React.forwardRef<HTMLDivElement, HeroProps>(
     }, [handleNext]);
 
     React.useEffect(() => {
+      if (isLightboxOpen) {
+        if (autoTimer.current) clearInterval(autoTimer.current);
+        return;
+      }
       startAuto();
       return () => { if (autoTimer.current) clearInterval(autoTimer.current); };
-    }, [startAuto]);
+    }, [startAuto, isLightboxOpen]);
+
+    // Close lightbox on Escape
+    React.useEffect(() => {
+      if (!isLightboxOpen) return;
+      const onKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') setIsLightboxOpen(false);
+      };
+      window.addEventListener('keydown', onKeyDown);
+      return () => window.removeEventListener('keydown', onKeyDown);
+    }, [isLightboxOpen]);
 
     // Mouse wheel — horizontal scroll navigates, vertical scroll passes through
     React.useEffect(() => {
@@ -142,13 +157,23 @@ export const HeroSection = React.forwardRef<HTMLDivElement, HeroProps>(
                       pointerEvents: isCenter ? 'auto' : 'none',
                     }}
                   >
-                    <img
-                      src={image.src}
-                      alt={image.alt}
-                      draggable={false}
-                      className="object-cover w-full h-full rounded-3xl shadow-xl"
+                    <div
+                      className={cn(
+                        'w-full h-full rounded-3xl shadow-xl overflow-hidden flex items-center justify-center bg-gray-100',
+                        isCenter && 'cursor-zoom-in'
+                      )}
                       style={{ border: '2px solid #0a0a0a' }}
-                    />
+                      onClick={() => {
+                        if (isCenter && !isDragging.current) setIsLightboxOpen(true);
+                      }}
+                    >
+                      <img
+                        src={image.src}
+                        alt={image.alt}
+                        draggable={false}
+                        className="object-contain w-full h-full"
+                      />
+                    </div>
                     {isCenter && (
                       <div className="absolute inset-0 rounded-3xl pointer-events-none"
                         style={{ boxShadow: '0 0 0 3px #FFB81C' }} />
@@ -173,6 +198,13 @@ export const HeroSection = React.forwardRef<HTMLDivElement, HeroProps>(
             </Button>
           </div>
 
+          {/* Caption for the centered image */}
+          {images[currentIndex]?.alt && (
+            <p className="max-w-md px-4 text-sm md:text-base text-gray-600">
+              {images[currentIndex].alt}
+            </p>
+          )}
+
           {/* Dot indicators */}
           <div className="flex gap-2">
             {images.map((_, i) => (
@@ -185,6 +217,34 @@ export const HeroSection = React.forwardRef<HTMLDivElement, HeroProps>(
             ))}
           </div>
         </div>
+
+        {/* Lightbox */}
+        {isLightboxOpen && (
+          <div
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 p-4"
+            onClick={() => setIsLightboxOpen(false)}
+          >
+            <button
+              type="button"
+              aria-label="Close"
+              className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"
+              onClick={(e) => { e.stopPropagation(); setIsLightboxOpen(false); }}
+            >
+              <X className="h-6 w-6" />
+            </button>
+            <img
+              src={images[currentIndex].src}
+              alt={images[currentIndex].alt}
+              className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+            {images[currentIndex]?.alt && (
+              <p className="mt-4 max-w-xl px-4 text-center text-sm text-white/80 md:text-base">
+                {images[currentIndex].alt}
+              </p>
+            )}
+          </div>
+        )}
       </div>
     );
   }

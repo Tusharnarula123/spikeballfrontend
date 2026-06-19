@@ -10,11 +10,14 @@ import { useApi } from '@/hooks/use-api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+const PLACEMENT_MATCHES = 5;
+
 interface Player {
   id: string;
   first_name: string;
   last_name: string;
   current_elo: number;
+  placement_matches_played?: number;
 }
 
 interface Tournament {
@@ -322,10 +325,17 @@ export default function SubmitScorePage() {
       width="narrow"
       headerRight={
         me ? (
-          <Chip className="bg-amber-50 text-amber-700 border-amber-200 font-semibold">
-            <Trophy className="w-3.5 h-3.5" />
-            {me.current_elo} ELO
-          </Chip>
+          (me.placement_matches_played ?? 0) < PLACEMENT_MATCHES ? (
+            <Chip className="bg-amber-50 text-amber-700 border-amber-200 font-semibold">
+              <Trophy className="w-3.5 h-3.5" />
+              {me.placement_matches_played ?? 0}/{PLACEMENT_MATCHES} placements
+            </Chip>
+          ) : (
+            <Chip className="bg-amber-50 text-amber-700 border-amber-200 font-semibold">
+              <Trophy className="w-3.5 h-3.5" />
+              {me.current_elo} ELO
+            </Chip>
+          )
         ) : undefined
       }
     >

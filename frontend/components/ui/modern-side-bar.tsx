@@ -17,6 +17,8 @@ import {
   Users,
   CalendarRange,
   ImageIcon,
+  FileText,
+  Award,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -46,6 +48,8 @@ const adminNavigationItems: NavigationItem[] = [
   { id: 'admin-tournaments', name: 'Tournaments',    icon: Trophy,        href: '/dashboard/admin/tournaments' },
   { id: 'admin-seasons',     name: 'Seasons',        icon: CalendarRange, href: '/dashboard/admin/seasons' },
   { id: 'admin-gallery',     name: 'Gallery',        icon: ImageIcon,     href: '/dashboard/admin/gallery' },
+  { id: 'admin-badges',      name: 'Badges',         icon: Award,         href: '/dashboard/admin/badges' },
+  { id: 'admin-about',       name: 'About Page',     icon: FileText,      href: '/dashboard/admin/about' },
 ];
 
 interface SidebarProps {

@@ -7,6 +7,32 @@ import { HeroSection } from '@/components/ui/feature-carousel'
 import { ContainerScroll } from '@/components/ui/container-scroll-animation'
 import { apiFetch } from '@/lib/api'
 
+// lucide-react dropped brand icons (trademark reasons) — inline SVGs instead
+function InstagramIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+    </svg>
+  )
+}
+function YoutubeIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.42a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.42 8.6.42 8.6.42s6.88 0 8.6-.42a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z" />
+      <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" />
+    </svg>
+  )
+}
+function DiscordIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.099.246.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.076.076 0 0 0-.04.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.418 2.157-2.418 1.21 0 2.176 1.094 2.157 2.418 0 1.334-.955 2.419-2.157 2.419zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.418 2.157-2.418 1.21 0 2.176 1.094 2.157 2.418 0 1.334-.946 2.419-2.157 2.419z" />
+    </svg>
+  )
+}
+
 // Types 
 interface LeaderboardEntry {
   rank: number
@@ -31,15 +57,32 @@ interface Announcement {
 // ─── Scroll reveal hook ───────────────────────────────────────────────────────
 function useScrollReveal() {
   useEffect(() => {
-    const els = document.querySelectorAll('.animate-on-scroll')
     const observer = new IntersectionObserver(
       (entries) => entries.forEach(e => {
         if (e.isIntersecting) { e.target.classList.add('visible'); observer.unobserve(e.target) }
       }),
       { threshold: 0.12 }
     )
-    els.forEach(el => observer.observe(el))
-    return () => observer.disconnect()
+
+    document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el))
+
+    // Sections like Announcements/Gallery render their cards after an async
+    // fetch resolves, i.e. after this effect's initial querySelectorAll already
+    // ran — those late-added elements would otherwise never get observed and
+    // stay permanently invisible (opacity: 0). Watch the DOM for any
+    // .animate-on-scroll nodes added later and observe them too.
+    const mutationObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        mutation.addedNodes.forEach(node => {
+          if (!(node instanceof Element)) return
+          if (node.matches('.animate-on-scroll')) observer.observe(node)
+          node.querySelectorAll?.('.animate-on-scroll').forEach(el => observer.observe(el))
+        })
+      }
+    })
+    mutationObserver.observe(document.body, { childList: true, subtree: true })
+
+    return () => { observer.disconnect(); mutationObserver.disconnect() }
   }, [])
 }
 
@@ -157,15 +200,26 @@ function Hero() {
       </div>
 
       {/* CTAs */}
-      <div className="mt-10 flex gap-4 animate-fade-in" style={{ animationDelay: '0.7s', opacity: 0 }}>
-        <a href="#rankings"
-          className="px-6 py-3 rounded-xl font-medium text-sm transition-all duration-200 hover:scale-105 active:scale-95"
+      <div id="connect" className="mt-10 flex gap-4 animate-fade-in" style={{ animationDelay: '0.7s', opacity: 0 }}>
+        <a href="https://www.instagram.com/ouroundnet?igsh=MTdiN3BlNXc1c3FkNw%3D%3D"
+          target="_blank" rel="noopener noreferrer"
+          className="px-6 py-3 rounded-xl font-medium text-sm transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-2"
           style={{ backgroundColor: '#FFB81C', color: '#0a0a0a' }}>
-          View Rankings
+          <InstagramIcon className="h-4 w-4" />
+          Instagram
         </a>
-        <a href="#about"
-          className="px-6 py-3 rounded-xl font-medium text-sm border border-gray-200 text-gray-600 transition-all duration-200 hover:border-gray-900 hover:text-gray-900">
-          About Us
+        <a href="https://www.youtube.com/@spikeball-p7w5s"
+          target="_blank" rel="noopener noreferrer"
+          className="px-6 py-3 rounded-xl font-medium text-sm border border-gray-200 text-gray-600 transition-all duration-200 hover:border-gray-900 hover:text-gray-900 flex items-center gap-2">
+          <YoutubeIcon className="h-4 w-4" />
+          YouTube
+        </a>
+        <a href="https://discord.com/invite/Fdvfg26dBs"
+          target="_blank" rel="noopener noreferrer"
+          className="px-6 py-3 rounded-xl font-medium text-sm transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-2"
+          style={{ backgroundColor: '#FFB81C', color: '#0a0a0a' }}>
+          <DiscordIcon className="h-4 w-4" />
+          Discord
         </a>
       </div>
 
@@ -182,12 +236,21 @@ function Hero() {
 function ScrollPreview() {
   const [filter, setFilter] = useState('All')
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [seasonName, setSeasonName] = useState<string | null>(null)
 
   useEffect(() => {
     apiFetch('/api/leaderboard')
       .then(r => r.json())
       .then(data => setLeaderboard(Array.isArray(data) ? data : []))
       .catch(() => setLeaderboard([]))
+  }, [])
+
+  // Active season name — same source as the dashboard leaderboard
+  useEffect(() => {
+    apiFetch('/api/seasons/active')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.season?.name) setSeasonName(data.season.name) })
+      .catch(() => {})
   }, [])
 
   const filtered = leaderboard.filter(p => {
@@ -197,7 +260,7 @@ function ScrollPreview() {
   })
 
   return (
-    <section className="bg-white overflow-hidden">
+    <section id="rankings" className="bg-white overflow-hidden">
       <ContainerScroll
         titleComponent={
           <div className="space-y-3 mb-10">
@@ -231,7 +294,7 @@ function ScrollPreview() {
           <div className="flex-1 overflow-auto px-6 py-4">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-xs font-medium tracking-widest uppercase" style={{ color: '#FFB81C' }}>Season 2025</p>
+                <p className="text-xs font-medium tracking-widest uppercase" style={{ color: '#FFB81C' }}>{seasonName ?? 'Leaderboard'}</p>
                 <h3 className="text-xl font-bold text-gray-900">Leaderboard</h3>
               </div>
               {/* Functional filter buttons */}
@@ -302,62 +365,76 @@ function ScrollPreview() {
 }
 
 // ─── About ────────────────────────────────────────────────────────────────────
-function About() {
-  const stats = [
+interface AboutStat {
+  value: string
+  label: string
+}
+
+interface AboutContent {
+  eyebrow: string
+  heading: string
+  paragraphs: string[]
+  stats: AboutStat[]
+}
+
+// Mirrors the previous hardcoded copy — used until the API responds (or if it's unreachable).
+const DEFAULT_ABOUT: AboutContent = {
+  eyebrow: 'Who We Are',
+  heading: 'About Us',
+  paragraphs: [
+    'The Oakland University Roundnet Club was founded in 2020 by a group of students passionate about the sport of roundnet (Spikeball).',
+    'We are a student-run club officially recognized by Oakland University Campus Recreation, operating under OU Student Organizations.',
+    'We compete in local and regional tournaments and are affiliated with USA Roundnet, the national governing body for the sport.',
+    'Beginner or experienced — everyone is welcome. We run structured competitive sessions with live ELO rankings alongside open casual play.',
+  ],
+  stats: [
     { value: '2020', label: 'Founded' },
     { value: '40+',  label: 'Members' },
     { value: '3',    label: 'Seasons' },
     { value: '200+', label: 'Matches Played' },
-  ]
+  ],
+}
+
+function About() {
+  const [content, setContent] = useState<AboutContent>(DEFAULT_ABOUT)
+
+  useEffect(() => {
+    apiFetch('/api/about')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return
+        setContent({
+          eyebrow: data.eyebrow || DEFAULT_ABOUT.eyebrow,
+          heading: data.heading || DEFAULT_ABOUT.heading,
+          paragraphs: Array.isArray(data.paragraphs) && data.paragraphs.length ? data.paragraphs : DEFAULT_ABOUT.paragraphs,
+          stats: Array.isArray(data.stats) && data.stats.length ? data.stats : DEFAULT_ABOUT.stats,
+        })
+      })
+      .catch(() => {})
+  }, [])
 
   return (
     <section id="about" className="py-24 px-6 bg-white">
       <div className="max-w-4xl mx-auto">
 
         <div className="animate-on-scroll mb-12 text-center">
-          <p className="text-xs tracking-[0.3em] uppercase mb-3" style={{ color: '#FFB81C' }}>Who We Are</p>
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900">About Us</h2>
+          <p className="text-xs tracking-[0.3em] uppercase mb-3" style={{ color: '#FFB81C' }}>{content.eyebrow}</p>
+          <h2 className="text-3xl md:text-4xl font-bold text-gray-900">{content.heading}</h2>
         </div>
 
         <div className="grid md:grid-cols-2 gap-12 items-center">
 
           {/* Text */}
           <div className="animate-on-scroll space-y-5 text-gray-500 leading-relaxed">
-            <p>
-              The <span className="text-gray-900 font-medium">Oakland University Roundnet Club</span> was
-              founded in 2020 by a group of students passionate about the sport of roundnet (Spikeball).
-            </p>
-            <p>
-              We are a student-run club officially recognized by{' '}
-              <span className="text-gray-900 font-medium">Oakland University Campus Recreation</span>,
-              operating under OU Student Organizations.
-            </p>
-            <p>
-              We compete in local and regional tournaments and are affiliated with{' '}
-              <span className="text-gray-900 font-medium">USA Roundnet</span>, the national governing body for the sport.
-            </p>
-            <p>
-              Beginner or experienced — everyone is welcome. We run structured competitive sessions
-              with live ELO rankings alongside open casual play.
-            </p>
-
-            <div className="flex gap-3 pt-2">
-              <a href="mailto:ouroundnet@oakland.edu"
-                className="text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 transition-all hover:border-gray-900 hover:text-gray-900">
-                Contact Us
-              </a>
-              <Link href="/signup"
-                className="text-sm px-4 py-2 rounded-lg font-medium transition-all hover:scale-105"
-                style={{ backgroundColor: '#FFB81C', color: '#0a0a0a' }}>
-                Join the Club
-              </Link>
-            </div>
+            {content.paragraphs.map((p, i) => (
+              <p key={i}>{p}</p>
+            ))}
           </div>
 
           {/* Stats */}
           <div className="animate-on-scroll grid grid-cols-2 gap-4">
-            {stats.map(({ value, label }) => (
-              <div key={label}
+            {content.stats.map(({ value, label }, i) => (
+              <div key={`${label}-${i}`}
                 className="rounded-2xl p-6 border border-gray-100 text-center transition-all duration-200 hover:border-[#FFB81C]/40 hover:shadow-sm bg-white">
                 <div className="text-3xl font-bold mb-1" style={{ color: '#FFB81C' }}>{value}</div>
                 <div className="text-xs text-gray-400 uppercase tracking-wider">{label}</div>
@@ -473,7 +550,7 @@ function Footer() {
         <div className="flex gap-6 text-sm text-gray-400">
           <a href="#rankings" className="hover:text-[#FFB81C] transition-colors">Rankings</a>
           <a href="#about"    className="hover:text-[#FFB81C] transition-colors">About</a>
-          <a href="mailto:ouroundnet@oakland.edu" className="hover:text-[#FFB81C] transition-colors">Contact</a>
+          <a href="#connect" className="hover:text-[#FFB81C] transition-colors">Connect</a>
         </div>
       </div>
     </footer>

@@ -24,6 +24,7 @@ interface Member {
   current_elo: number;
   status: 'pending' | 'active' | 'suspended';
   created_at: string;
+  avatar_url?: string | null;
 }
 
 interface Badge {
@@ -31,6 +32,11 @@ interface Badge {
   name: string;
   description: string;
   trigger_type: string;
+}
+
+interface TournamentOption {
+  id: string;
+  name: string;
 }
 
 const STATUS_STYLES: Record<Member['status'], string> = {
@@ -48,6 +54,7 @@ export default function AdminMembersPage() {
 
   const [members, setMembers] = useState<Member[]>([]);
   const [badges, setBadges] = useState<Badge[]>([]);
+  const [tournaments, setTournaments] = useState<TournamentOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | Member['status']>('all');
@@ -57,6 +64,7 @@ export default function AdminMembersPage() {
   // Badge modal
   const [badgeTarget, setBadgeTarget] = useState<Member | null>(null);
   const [selectedBadgeId, setSelectedBadgeId] = useState('');
+  const [selectedTournamentId, setSelectedTournamentId] = useState('');
   const [awarding, setAwarding] = useState(false);
   const [awardMsg, setAwardMsg] = useState<string | null>(null);
 
@@ -75,11 +83,13 @@ export default function AdminMembersPage() {
     }
     (async () => {
       try {
-        const [, bRes] = await Promise.all([
+        const [, bRes, tRes] = await Promise.all([
           refresh(),
           apiFetch('/api/badges'),
+          apiFetch('/api/tournaments'),
         ]);
         if (bRes.ok) setBadges(await bRes.json());
+        if (tRes.ok) setTournaments(await tRes.json());
       } finally {
         setLoading(false);
       }
@@ -111,7 +121,11 @@ export default function AdminMembersPage() {
     try {
       const res = await fetchApi('/api/badges/award', {
         method: 'POST',
-        body: JSON.stringify({ playerId: badgeTarget.id, badgeId: selectedBadgeId }),
+        body: JSON.stringify({
+          playerId: badgeTarget.id,
+          badgeId: selectedBadgeId,
+          tournamentId: selectedTournamentId || undefined,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -121,7 +135,12 @@ export default function AdminMembersPage() {
         return;
       }
       setAwardMsg('Badge awarded! 🎉');
-      setTimeout(() => { setBadgeTarget(null); setSelectedBadgeId(''); setAwardMsg(null); }, 1200);
+      setTimeout(() => {
+        setBadgeTarget(null);
+        setSelectedBadgeId('');
+        setSelectedTournamentId('');
+        setAwardMsg(null);
+      }, 1200);
     } finally {
       setAwarding(false);
     }
@@ -176,9 +195,18 @@ export default function AdminMembersPage() {
               <Card key={m.id} className="p-5">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-full bg-[#0a0a0a] text-[#FFB81C] flex items-center justify-center font-bold text-sm flex-shrink-0">
-                      {m.first_name[0]}{m.last_name[0]}
-                    </div>
+                    {m.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={m.avatar_url}
+                        alt={fullName(m)}
+                        className="w-10 h-10 rounded-full object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-[#0a0a0a] text-[#FFB81C] flex items-center justify-center font-bold text-sm flex-shrink-0">
+                        {m.first_name[0]}{m.last_name[0]}
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <p className="font-bold text-gray-900 truncate">{fullName(m)}</p>
                       <p className="text-xs text-gray-400 truncate">{m.email}</p>
@@ -277,9 +305,18 @@ export default function AdminMembersPage() {
                   <tr key={m.id} className="border-t border-gray-50 hover:bg-[#fffbf0] transition-colors">
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-[#0a0a0a] text-[#FFB81C] flex items-center justify-center font-bold text-[10px] flex-shrink-0">
-                          {m.first_name[0]}{m.last_name[0]}
-                        </div>
+                        {m.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={m.avatar_url}
+                            alt={fullName(m)}
+                            className="w-7 h-7 rounded-full object-cover flex-shrink-0"
+                          />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-[#0a0a0a] text-[#FFB81C] flex items-center justify-center font-bold text-[10px] flex-shrink-0">
+                            {m.first_name[0]}{m.last_name[0]}
+                          </div>
+                        )}
                         <div className="min-w-0">
                           <p className="font-medium text-gray-900 text-xs">{fullName(m)}</p>
                           <p className="text-[11px] text-gray-400 truncate max-w-[180px]">{m.email}</p>
@@ -305,7 +342,7 @@ export default function AdminMembersPage() {
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => { setBadgeTarget(m); setSelectedBadgeId(''); setAwardMsg(null); }}
+                          onClick={() => { setBadgeTarget(m); setSelectedBadgeId(''); setSelectedTournamentId(''); setAwardMsg(null); }}
                           title="Award badge"
                           className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:border-[#FFB81C] hover:text-[#FFB81C] transition-colors"
                         >
@@ -385,6 +422,25 @@ export default function AdminMembersPage() {
                     <p className="text-xs text-gray-400 mt-0.5">{b.description}</p>
                   </button>
                 ))}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                  Tournament <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <select
+                  value={selectedTournamentId}
+                  onChange={e => setSelectedTournamentId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FFB81C] focus:border-transparent transition-all"
+                >
+                  <option value="">No specific tournament</option>
+                  {tournaments.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-400 mt-1">
+                  Tying this badge to a tournament lets the player see where they earned it, and lets them earn the same badge again in a future tournament.
+                </p>
               </div>
 
               {awardMsg && (

@@ -104,6 +104,16 @@ function LoginPage() {
   const [isLookingAtEachOther, setIsLookingAtEachOther] = useState(false);
   const [isPurplePeeking, setIsPurplePeeking] = useState(false);
 
+  // Forgot password flow
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetStep, setResetStep] = useState<"request" | "verify">("request");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetCode, setResetCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+
   const purpleRef = useRef<HTMLDivElement>(null);
   const blackRef  = useRef<HTMLDivElement>(null);
   const yellowRef = useRef<HTMLDivElement>(null);
@@ -176,13 +186,76 @@ function LoginPage() {
         await setActive({ session: result.createdSessionId });
         router.push("/dashboard");
       } else {
-        setError("Sign-in could not be completed. Please try again.");
+        // eslint-disable-next-line no-console
+        console.warn("Clerk sign-in did not complete:", result);
+        setError(`Sign-in needs an extra step (status: ${result.status}). Check the browser console for details.`);
       }
     } catch (err: unknown) {
-      const clerkError = err as { errors?: { message: string }[] };
+      const clerkError = err as { errors?: { message: string; code?: string }[] };
+      // eslint-disable-next-line no-console
+      console.warn("Clerk sign-in error:", clerkError);
       setError(clerkError.errors?.[0]?.message ?? "Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const openForgotPassword = () => {
+    setResetEmail(email);
+    setResetCode("");
+    setNewPassword("");
+    setResetError("");
+    setResetStep("request");
+    setShowForgotPassword(true);
+  };
+
+  const handleRequestReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isLoaded) return;
+    setResetError("");
+    setResetLoading(true);
+    try {
+      await signIn.create({
+        identifier: resetEmail,
+        strategy: "reset_password_email_code",
+      });
+      setResetStep("verify");
+    } catch (err: unknown) {
+      const clerkError = err as { errors?: { message: string }[] };
+      // eslint-disable-next-line no-console
+      console.warn("Clerk reset-password request error:", clerkError);
+      setResetError(clerkError.errors?.[0]?.message ?? "Could not send reset email. Please try again.");
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  const handleConfirmReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isLoaded) return;
+    setResetError("");
+    setResetLoading(true);
+    try {
+      const result = await signIn.attemptFirstFactor({
+        strategy: "reset_password_email_code",
+        code: resetCode,
+        password: newPassword,
+      });
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        router.push("/dashboard");
+      } else {
+        // eslint-disable-next-line no-console
+        console.warn("Clerk reset-password did not complete:", result);
+        setResetError(`Could not finish reset (status: ${result.status}). Check the code and try again.`);
+      }
+    } catch (err: unknown) {
+      const clerkError = err as { errors?: { message: string }[] };
+      // eslint-disable-next-line no-console
+      console.warn("Clerk reset-password confirm error:", clerkError);
+      setResetError(clerkError.errors?.[0]?.message ?? "Could not reset password. Please try again.");
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -399,9 +472,10 @@ function LoginPage() {
                   Remember me
                 </Label>
               </div>
-              <a href="#" className="text-sm font-medium hover:underline" style={{ color: "#FFB81C" }}>
+              <button type="button" onClick={openForgotPassword}
+                className="text-sm font-medium hover:underline" style={{ color: "#FFB81C" }}>
                 Forgot password?
-              </a>
+              </button>
             </div>
 
             {error && (
@@ -444,6 +518,89 @@ function LoginPage() {
           </p>
         </div>
       </div>
+
+      {/* Forgot password modal */}
+      {showForgotPassword && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-[400px] rounded-xl bg-white p-6 shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {resetStep === "request" ? "Reset your password" : "Enter code & new password"}
+              </h2>
+              <button type="button" onClick={() => setShowForgotPassword(false)}
+                className="text-gray-400 hover:text-gray-700 text-sm">
+                ✕
+              </button>
+            </div>
+
+            {resetStep === "request" ? (
+              <form onSubmit={handleRequestReset} className="space-y-4">
+                <p className="text-sm text-gray-500">
+                  Enter your account email. We&apos;ll send you a code to reset your password.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="reset-email" className="text-sm font-medium text-gray-700">Email</Label>
+                  <Input id="reset-email" type="email" placeholder="you@oakland.edu"
+                    value={resetEmail} autoComplete="off"
+                    onChange={e => setResetEmail(e.target.value)}
+                    required className="h-11 border-gray-200" />
+                </div>
+                {resetError && (
+                  <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+                    {resetError}
+                  </div>
+                )}
+                <button type="submit" disabled={resetLoading}
+                  className="w-full h-11 rounded-lg font-semibold text-sm disabled:opacity-60"
+                  style={{ backgroundColor: "#FFB81C", color: "#0a0a0a" }}>
+                  {resetLoading ? "Sending..." : "Send reset code"}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleConfirmReset} className="space-y-4">
+                <p className="text-sm text-gray-500">
+                  Check <span className="font-medium text-gray-700">{resetEmail}</span> for a 6-digit code, then set a new password.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="reset-code" className="text-sm font-medium text-gray-700">Code</Label>
+                  <Input id="reset-code" type="text" placeholder="123456"
+                    value={resetCode} name="otp"
+                    autoComplete="one-time-code" inputMode="numeric"
+                    onChange={e => setResetCode(e.target.value)}
+                    required className="h-11 border-gray-200" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-password" className="text-sm font-medium text-gray-700">New password</Label>
+                  <div className="relative">
+                    <Input id="new-password" type={showNewPassword ? "text" : "password"} placeholder="••••••••"
+                      value={newPassword} autoComplete="new-password"
+                      onChange={e => setNewPassword(e.target.value)}
+                      required minLength={8} className="h-11 pr-10 border-gray-200" />
+                    <button type="button" onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors">
+                      {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+                {resetError && (
+                  <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+                    {resetError}
+                  </div>
+                )}
+                <button type="submit" disabled={resetLoading}
+                  className="w-full h-11 rounded-lg font-semibold text-sm disabled:opacity-60"
+                  style={{ backgroundColor: "#FFB81C", color: "#0a0a0a" }}>
+                  {resetLoading ? "Resetting..." : "Reset password"}
+                </button>
+                <button type="button" onClick={() => setResetStep("request")}
+                  className="w-full text-center text-sm text-gray-500 hover:underline">
+                  Didn&apos;t get a code? Send again
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

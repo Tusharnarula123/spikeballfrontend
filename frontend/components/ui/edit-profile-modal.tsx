@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { X, Check, Loader2, User, GraduationCap, FileText } from 'lucide-react';
+import { X, Check, Loader2, User, GraduationCap, FileText, Camera, Trash2 } from 'lucide-react';
 import { useApi } from '@/hooks/use-api';
 
 const BIO_MAX = 200;
@@ -27,11 +27,14 @@ export function EditProfileModal({ open, onClose, onSaved }: EditProfileModalPro
   const [lastName, setLastName] = useState('');
   const [university, setUniversity] = useState('');
   const [bio, setBio] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load fresh values every time the modal opens
   useEffect(() => {
@@ -53,10 +56,59 @@ export function EditProfileModal({ open, onClose, onSaved }: EditProfileModalPro
         if (typeof data.last_name === 'string') setLastName(data.last_name);
         setUniversity(data.university ?? '');
         setBio(data.bio ?? '');
+        setAvatarUrl(data.avatar_url ?? null);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [open, authLoaded, user, fetchApi]);
+
+  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setUploadingAvatar(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const res = await fetchApi('/api/players/me/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? 'Failed to upload picture');
+        return;
+      }
+      const updated = await res.json();
+      setAvatarUrl(updated.avatar_url ?? null);
+      onSaved?.();
+    } catch {
+      setError('Network error — please try again.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setUploadingAvatar(true);
+    setError(null);
+    try {
+      const res = await fetchApi('/api/players/me/avatar', { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? 'Failed to remove picture');
+        return;
+      }
+      setAvatarUrl(null);
+      onSaved?.();
+    } catch {
+      setError('Network error — please try again.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!firstName.trim()) {
@@ -114,7 +166,7 @@ export function EditProfileModal({ open, onClose, onSaved }: EditProfileModalPro
         {/* Header */}
         <div className="relative px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-[#FFB81C] via-[#ffd166] to-transparent" />
-          <h2 className="text-lg font-bold text-[#0a0a0a]">Edit Profile</h2>
+          <h2 className="text-lg font-bold text-[#0a0a0a]">Settings</h2>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
             <X className="h-5 w-5 text-gray-400" />
           </button>
@@ -122,12 +174,65 @@ export function EditProfileModal({ open, onClose, onSaved }: EditProfileModalPro
 
         {/* Body */}
         <div className="px-6 py-5 space-y-5 max-h-[65vh] overflow-y-auto">
-          {/* Live avatar preview from initials */}
+          {/* Avatar preview + upload */}
           <div className="flex flex-col items-center gap-2">
-            <div className="w-20 h-20 rounded-full bg-[#0a0a0a] flex items-center justify-center shadow-lg shadow-[#FFB81C]/20 ring-4 ring-[#FFB81C]/20">
-              <span className="text-[#FFB81C] font-black text-2xl">{initials}</span>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="relative w-20 h-20 rounded-full group disabled:opacity-70"
+                title="Change profile picture"
+              >
+                {avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={avatarUrl}
+                    alt="Profile picture"
+                    className="w-20 h-20 rounded-full object-cover shadow-lg shadow-[#FFB81C]/20 ring-4 ring-[#FFB81C]/20"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-[#0a0a0a] flex items-center justify-center shadow-lg shadow-[#FFB81C]/20 ring-4 ring-[#FFB81C]/20">
+                    <span className="text-[#FFB81C] font-black text-2xl">{initials}</span>
+                  </div>
+                )}
+                <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  {uploadingAvatar
+                    ? <Loader2 className="h-5 w-5 text-white animate-spin" />
+                    : <Camera className="h-5 w-5 text-white" />}
+                </div>
+              </button>
+              {avatarUrl && !uploadingAvatar && (
+                <button
+                  type="button"
+                  onClick={handleRemoveAvatar}
+                  title="Remove profile picture"
+                  className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-white border border-gray-200 shadow flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5 text-gray-400 hover:text-red-500" />
+                </button>
+              )}
             </div>
-            <p className="text-xs text-gray-400">Your avatar uses your initials</p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarSelect}
+            />
+            <p className="text-xs text-gray-400">
+              {avatarUrl ? 'Click your photo to change it' : 'Click to upload a profile picture'}
+            </p>
+            {avatarUrl && (
+              <button
+                type="button"
+                onClick={handleRemoveAvatar}
+                disabled={uploadingAvatar}
+                className="flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors disabled:opacity-60"
+              >
+                <Trash2 className="w-3 h-3" /> Remove photo
+              </button>
+            )}
           </div>
 
           {/* Name */}

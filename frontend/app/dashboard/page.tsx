@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useUser, useClerk } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/ui/modern-side-bar';
@@ -11,7 +11,6 @@ import {
   Trophy,
   ChevronDown,
   Settings,
-  Edit3,
   LogOut,
   Info,
   Zap,
@@ -63,6 +62,7 @@ export default function DashboardPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [lbFilter, setLbFilter] = useState('All');
   const [myPlayerId, setMyPlayerId] = useState<string | null>(null);
+  const [myAvatarUrl, setMyAvatarUrl] = useState<string | null>(null);
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [seasonName, setSeasonName] = useState<string | null>(null);
@@ -107,14 +107,21 @@ export default function DashboardPage() {
       .catch(() => setAnnouncements([]));
   }, [authLoaded, fetchApi]);
 
-  // Fetch current player's DB id (to highlight their leaderboard row)
-  useEffect(() => {
+  // Fetch current player's DB id (to highlight their leaderboard row) + avatar
+  const refreshMyPlayer = useCallback(() => {
     if (!isLoaded || !authLoaded || !user) return;
     fetchApi('/api/players/me')
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.id) setMyPlayerId(data.id); })
+      .then(data => {
+        if (data?.id) setMyPlayerId(data.id);
+        setMyAvatarUrl(data?.avatar_url ?? null);
+      })
       .catch(() => {});
   }, [isLoaded, authLoaded, user, fetchApi]);
+
+  useEffect(() => {
+    refreshMyPlayer();
+  }, [refreshMyPlayer]);
 
   // Close avatar dropdown on outside click
   useEffect(() => {
@@ -139,7 +146,7 @@ export default function DashboardPage() {
   const firstName   = user?.firstName || 'Spiker';
   const displayName = user?.fullName || user?.username || 'Anonymous';
   const initials    = ((user?.firstName?.[0] ?? '') + (user?.lastName?.[0] ?? '')).toUpperCase() || 'S';
-  const avatarUrl   = user?.imageUrl;
+  const avatarUrl   = myAvatarUrl || user?.imageUrl;
 
   const myEntry = leaderboard.find(p => p.player_id === myPlayerId);
 
@@ -197,18 +204,10 @@ export default function DashboardPage() {
               <div className="absolute right-0 top-12 w-52 bg-white rounded-xl shadow-xl border border-gray-100 py-1.5 z-50">
                 <div className="px-4 py-2 border-b border-gray-100 mb-1">
                   <p className="text-sm font-semibold text-[#0a0a0a] truncate">{displayName}</p>
-                  <p className="text-xs text-gray-400 truncate">{user?.primaryEmailAddress?.emailAddress}</p>
                 </div>
                 <button
                   onClick={() => { setShowEditProfile(true); setShowAvatarMenu(false); }}
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  <Edit3 className="h-4 w-4 text-gray-400" />
-                  Edit Profile
-                </button>
-                <button
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                  onClick={() => setShowAvatarMenu(false)}
                 >
                   <Settings className="h-4 w-4 text-gray-400" />
                   Settings
@@ -437,6 +436,7 @@ export default function DashboardPage() {
       <EditProfileModal
         open={showEditProfile}
         onClose={() => setShowEditProfile(false)}
+        onSaved={refreshMyPlayer}
       />
     </div>
   );

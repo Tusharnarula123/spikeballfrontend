@@ -44,7 +44,10 @@ interface MyRegistration {
   preferredPartnerId: string | null;
   tournament: Tournament;
   teamId: string | null;
-  partner: { id: string; first_name: string; last_name: string } | null;
+  teamName: string | null;
+  partner: { id: string; name: string } | null;
+  requestedPartner: { id: string; name: string } | null;
+  isMutualMatch: boolean;
 }
 
 const STATUS_LABELS: Record<Tournament['status'], string> = {
@@ -73,6 +76,7 @@ export default function RegisterPage() {
   const [otherPlayers, setOtherPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [partnerChoice, setPartnerChoice] = useState<Record<string, string>>({});
+  const [teamNameChoice, setTeamNameChoice] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -111,9 +115,13 @@ export default function RegisterPage() {
     setError(null);
     try {
       const preferredPartnerId = partnerChoice[tournamentId];
+      const teamName = teamNameChoice[tournamentId];
       const res = await fetchApi(`/api/tournaments/${tournamentId}/register`, {
         method: 'POST',
-        body: JSON.stringify({ preferredPartnerId: preferredPartnerId || null }),
+        body: JSON.stringify({
+          preferredPartnerId: preferredPartnerId || null,
+          teamName: teamName?.trim() || null,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -248,10 +256,19 @@ export default function RegisterPage() {
                                 </span>
                                 {reg.partner ? (
                                   <span className="text-gray-500">
-                                    · Teamed with <span className="font-medium text-gray-700">{reg.partner.first_name} {reg.partner.last_name}</span>
+                                    · Teamed with <span className="font-medium text-gray-700">{reg.partner.name}</span>
+                                    {reg.teamName && <span className="font-medium text-gray-700"> as &ldquo;{reg.teamName}&rdquo;</span>}
+                                  </span>
+                                ) : reg.isMutualMatch && reg.requestedPartner ? (
+                                  <span className="text-gray-500">
+                                    · Registered with <span className="font-medium text-gray-700">{reg.requestedPartner.name}</span>
+                                    {reg.teamName && <span className="font-medium text-gray-700"> as &ldquo;{reg.teamName}&rdquo;</span>}
                                   </span>
                                 ) : reg.preferredPartnerId ? (
-                                  <span className="text-gray-400">· Requested partner pending team formation</span>
+                                  <span className="text-gray-400">
+                                    · Requested partner pending team formation
+                                    {reg.teamName && <> — team name &ldquo;{reg.teamName}&rdquo; saved</>}
+                                  </span>
                                 ) : (
                                   <span className="text-gray-400">· Waiting for team formation</span>
                                 )}
@@ -270,16 +287,26 @@ export default function RegisterPage() {
                           ) : canRegister ? (
                             <div className="flex flex-wrap items-center gap-3">
                               {t.team_formation === 'self_select' && (
-                                <select
-                                  value={partnerChoice[t.id] ?? ''}
-                                  onChange={e => setPartnerChoice(prev => ({ ...prev, [t.id]: e.target.value }))}
-                                  className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#FFB81C] focus:border-transparent"
-                                >
-                                  <option value="">Pick a teammate (optional)</option>
-                                  {otherPlayers.map(p => (
-                                    <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>
-                                  ))}
-                                </select>
+                                <>
+                                  <select
+                                    value={partnerChoice[t.id] ?? ''}
+                                    onChange={e => setPartnerChoice(prev => ({ ...prev, [t.id]: e.target.value }))}
+                                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#FFB81C] focus:border-transparent"
+                                  >
+                                    <option value="">Pick a teammate (optional)</option>
+                                    {otherPlayers.map(p => (
+                                      <option key={p.id} value={p.id}>{p.first_name} {p.last_name}</option>
+                                    ))}
+                                  </select>
+                                  <input
+                                    type="text"
+                                    value={teamNameChoice[t.id] ?? ''}
+                                    onChange={e => setTeamNameChoice(prev => ({ ...prev, [t.id]: e.target.value }))}
+                                    placeholder="Team name (optional)"
+                                    maxLength={60}
+                                    className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#FFB81C] focus:border-transparent"
+                                  />
+                                </>
                               )}
                               <button
                                 onClick={() => handleRegister(t.id)}

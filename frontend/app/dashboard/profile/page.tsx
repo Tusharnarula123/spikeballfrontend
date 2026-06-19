@@ -4,7 +4,10 @@ import { useUser } from '@clerk/nextjs';
 import { Sidebar } from '@/components/ui/modern-side-bar';
 import { useClerk } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import { Trophy, Swords, Star, TrendingUp, User, ShieldCheck, Pencil, X, Check, Loader2 } from 'lucide-react';
+import {
+  Trophy, Swords, Star, TrendingUp, User, ShieldCheck, Pencil, X, Check, Loader2,
+  CheckCircle, Medal, Award, Flame, Zap, Crown,
+} from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useApi } from '@/hooks/use-api';
 
@@ -23,10 +26,13 @@ interface Player {
   created_at: string;
   university?: string;
   bio?: string;
+  avatar_url?: string;
   player_badges?: {
     badge_id: string;
     awarded_at: string;
-    badges: { name: string; icon_name: string; description: string };
+    tournament_id?: string | null;
+    badges: { name: string; icon_name: string | null; icon_url: string | null; description: string };
+    tournament?: { id: string; name: string } | null;
   }[];
 }
 
@@ -359,11 +365,17 @@ export default function ProfilePage() {
   const badges = player?.player_badges ?? [];
 
   const badgeIcons: Record<string, React.ReactNode> = {
-    trophy:   <Trophy className="w-4 h-4" />,
-    swords:   <Swords className="w-4 h-4" />,
-    star:     <Star className="w-4 h-4" />,
-    trending: <TrendingUp className="w-4 h-4" />,
-    shield:   <ShieldCheck className="w-4 h-4" />,
+    trophy:       <Trophy className="w-4 h-4" />,
+    swords:       <Swords className="w-4 h-4" />,
+    star:         <Star className="w-4 h-4" />,
+    trending:     <TrendingUp className="w-4 h-4" />,
+    shield:       <ShieldCheck className="w-4 h-4" />,
+    'check-circle': <CheckCircle className="w-4 h-4" />,
+    medal:        <Medal className="w-4 h-4" />,
+    award:        <Award className="w-4 h-4" />,
+    flame:        <Flame className="w-4 h-4" />,
+    zap:          <Zap className="w-4 h-4" />,
+    crown:        <Crown className="w-4 h-4" />,
   };
 
   return (
@@ -380,9 +392,18 @@ export default function ProfilePage() {
 
         {/* ── Profile header ── */}
         <div className="flex items-center gap-5 mb-8">
-          <div className="w-20 h-20 rounded-full bg-[#FFB81C] flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#FFB81C]/20">
-            <span className="text-[#0a0a0a] font-black text-2xl">{initials || <User className="w-8 h-8" />}</span>
-          </div>
+          {player?.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={player.avatar_url}
+              alt={fullName}
+              className="w-20 h-20 rounded-full object-cover flex-shrink-0 shadow-lg shadow-[#FFB81C]/20"
+            />
+          ) : (
+            <div className="w-20 h-20 rounded-full bg-[#FFB81C] flex items-center justify-center flex-shrink-0 shadow-lg shadow-[#FFB81C]/20">
+              <span className="text-[#0a0a0a] font-black text-2xl">{initials || <User className="w-8 h-8" />}</span>
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <h1 className="text-white text-2xl font-bold">{fullName}</h1>
             <p className="text-white/40 text-sm mt-0.5">{player?.email ?? user?.primaryEmailAddress?.emailAddress}</p>
@@ -478,12 +499,23 @@ export default function ProfilePage() {
             {badges.map((b) => (
               <div key={b.badge_id}
                 className="flex items-center gap-3 bg-[#111] border border-[#FFB81C]/20 rounded-xl p-4">
-                <div className="w-9 h-9 rounded-full bg-[#FFB81C]/10 text-[#FFB81C] flex items-center justify-center flex-shrink-0">
-                  {badgeIcons[b.badges.icon_name] ?? <Star className="w-4 h-4" />}
+                <div className="w-9 h-9 rounded-full bg-[#FFB81C]/10 text-[#FFB81C] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  {b.badges.icon_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={b.badges.icon_url} alt={b.badges.name} className="w-full h-full object-cover" />
+                  ) : (
+                    badgeIcons[b.badges.icon_name ?? ''] ?? <Star className="w-4 h-4" />
+                  )}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-white text-sm font-semibold">{b.badges.name}</p>
                   <p className="text-white/40 text-xs">{b.badges.description}</p>
+                  {b.tournament?.name && (
+                    <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full bg-[#FFB81C]/10 text-[#FFB81C] text-[11px] font-medium">
+                      <Trophy className="w-3 h-3" />
+                      {b.tournament.name}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}

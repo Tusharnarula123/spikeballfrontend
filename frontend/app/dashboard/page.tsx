@@ -171,15 +171,15 @@ export default function DashboardPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
         {/* Header */}
-        <header className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between flex-shrink-0 shadow-sm">
-          {/* Greeting — indent on mobile to clear hamburger */}
-          <div className="ml-14 md:ml-0">
-            <h1 className="text-xl font-bold text-[#0a0a0a]">
+        <header className="bg-white border-b border-gray-100 pl-16 pr-4 sm:px-6 py-4 flex items-center justify-between gap-3 flex-shrink-0 shadow-sm overflow-hidden">
+          {/* Greeting — min-w-0 lets it shrink/wrap instead of pushing the avatar off-screen on mobile */}
+          <div className="min-w-0 flex-1 md:ml-0">
+            <h1 className="text-lg sm:text-xl font-bold text-[#0a0a0a] truncate">
               What up!{' '}
               <span className="text-[#FFB81C]">Spiker</span>{' '}
               {firstName}! 👋
             </h1>
-            <p className="text-sm text-gray-400 mt-0.5">
+            <p className="text-xs sm:text-sm text-gray-400 mt-0.5 truncate">
               {myEntry
                 ? `Rank #${myEntry.rank} · ${myEntry.current_elo} ELO · ${myEntry.wins}W ${myEntry.losses}L`
                 : 'Complete 5 placement matches to appear on the leaderboard'}
@@ -256,11 +256,11 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm min-w-[480px]">
                     <thead>
                       <tr style={{ backgroundColor: '#0a0a0a' }}>
                         {['Rank', 'Player', 'ELO', 'Record', 'Ratio'].map(h => (
-                          <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: '#888' }}>{h}</th>
+                          <th key={h} className="px-2.5 sm:px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: '#888' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -281,37 +281,37 @@ export default function DashboardPage() {
                             onMouseEnter={e => { if (!isMe) (e.currentTarget as HTMLElement).style.backgroundColor = '#fffbf0'; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = isMe ? 'rgba(255,184,28,0.08)' : ''; }}
                           >
-                            <td className="px-4 py-2.5 font-bold text-xs">
+                            <td className="px-2.5 sm:px-4 py-2.5 font-bold text-xs whitespace-nowrap">
                               {player.rank <= 3
                                 ? ['🥇','🥈','🥉'][player.rank - 1]
                                 : <span className="text-gray-400">#{player.rank}</span>}
                             </td>
-                            <td className="px-4 py-2.5">
-                              <div className="flex items-center gap-2">
+                            <td className="px-2.5 sm:px-4 py-2.5 max-w-[140px] sm:max-w-none">
+                              <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
                                 <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
                                   style={{ backgroundColor: '#0a0a0a', color: '#FFB81C' }}>
                                   {(player.display_name || '?').charAt(0).toUpperCase()}
                                 </div>
-                                <span className={`text-xs ${isMe ? 'font-bold text-gray-900' : 'font-medium text-gray-900'}`}>
+                                <span className={`text-xs truncate ${isMe ? 'font-bold text-gray-900' : 'font-medium text-gray-900'}`}>
                                   {player.display_name}
                                 </span>
                                 {isMe && (
-                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none"
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none flex-shrink-0"
                                     style={{ backgroundColor: '#FFB81C', color: '#0a0a0a' }}>
                                     YOU
                                   </span>
                                 )}
                               </div>
                             </td>
-                            <td className="px-4 py-2.5 font-bold text-xs" style={{ color: '#FFB81C' }}>
+                            <td className="px-2.5 sm:px-4 py-2.5 font-bold text-xs whitespace-nowrap" style={{ color: '#FFB81C' }}>
                               {player.current_elo}
                             </td>
-                            <td className="px-4 py-2.5 text-xs">
+                            <td className="px-2.5 sm:px-4 py-2.5 text-xs whitespace-nowrap">
                               <span className="text-green-600 font-medium">{player.wins}W</span>
                               <span className="text-gray-300 mx-1">–</span>
                               <span className="text-red-400 font-medium">{player.losses}L</span>
                             </td>
-                            <td className="px-4 py-2.5 text-xs text-gray-500 font-medium">
+                            <td className="px-2.5 sm:px-4 py-2.5 text-xs text-gray-500 font-medium whitespace-nowrap">
                               {player.total_matches > 0 ? Math.round(player.win_rate) : 0}%
                             </td>
                           </tr>
@@ -365,7 +365,7 @@ export default function DashboardPage() {
                       <Icon className={`h-5 w-5 ${iconColor}`} />
                       <h3 className="font-semibold text-[#0a0a0a] text-sm">{title}</h3>
                     </div>
-                    <p className="text-xs text-gray-600 leading-relaxed">{desc}</p>
+                    <p className="text-xs text-gray-600 leading-relaxed text-justify">{desc}</p>
                   </div>
                 ))}
               </div>
@@ -397,7 +397,7 @@ export default function DashboardPage() {
                         {ann.type.charAt(0).toUpperCase() + ann.type.slice(1)}
                       </span>
                       <h3 className="font-semibold text-[#0a0a0a] text-sm mb-2 leading-snug">{ann.title}</h3>
-                      <p className="text-xs text-gray-500 leading-relaxed flex-1">{ann.content}</p>
+                      <p className="text-xs text-gray-500 leading-relaxed text-justify flex-1">{ann.content}</p>
                       {isTournament && (
                         <p className="text-xs text-gray-300 mt-3">
                           {new Date(ann.date).toLocaleDateString('en-US', {

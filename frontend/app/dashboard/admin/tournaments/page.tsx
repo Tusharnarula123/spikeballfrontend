@@ -24,7 +24,7 @@ interface Tournament {
   season_id: string | null;
   start_date: string;
   end_date: string | null;
-  status: 'upcoming' | 'registration_open' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'upcoming' | 'registration_open' | 'registration_closed' | 'in_progress' | 'completed' | 'cancelled';
   registration_count: number;
 }
 
@@ -41,12 +41,13 @@ interface RegistrationRow {
   team_id: string | null;
   player: { id: string; first_name: string; last_name: string; email: string; age: number; gender: string; university: string | null; current_elo: number };
   preferred_partner: { id: string; first_name: string; last_name: string } | null;
-  team: { id: string; player1_id: string; player2_id: string } | null;
+  team: { id: string; player1_id: string; player2_id: string; team_name: string | null } | null;
 }
 
 const STATUS_LABELS: Record<Tournament['status'], string> = {
   upcoming: 'Upcoming',
   registration_open: 'Registration Open',
+  registration_closed: 'Registration Closed',
   in_progress: 'In Progress',
   completed: 'Completed',
   cancelled: 'Cancelled',
@@ -55,6 +56,7 @@ const STATUS_LABELS: Record<Tournament['status'], string> = {
 const STATUS_STYLES: Record<Tournament['status'], string> = {
   upcoming: 'bg-gray-50 text-gray-600 border-gray-200',
   registration_open: 'bg-green-50 text-green-700 border-green-200',
+  registration_closed: 'bg-orange-50 text-orange-700 border-orange-200',
   in_progress: 'bg-purple-50 text-purple-700 border-purple-200',
   completed: 'bg-blue-50 text-blue-700 border-blue-200',
   cancelled: 'bg-red-50 text-red-600 border-red-200',
@@ -552,7 +554,7 @@ export default function AdminTournamentsPage() {
                               </span>
                             </div>
                             {t.description && (
-                              <p className="text-sm text-gray-500 mb-1.5 max-w-xl">{t.description}</p>
+                              <p className="text-sm text-gray-500 mb-1.5 max-w-xl text-justify">{t.description}</p>
                             )}
                             <p className="text-xs text-gray-400 flex items-center gap-1.5">
                               <Calendar className="w-3.5 h-3.5" />
@@ -707,34 +709,89 @@ export default function AdminTournamentsPage() {
                             ) : registrations.length === 0 ? (
                               <p className="text-sm text-gray-400 text-center py-4">No registrations yet.</p>
                             ) : (
-                              <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
-                                  <thead>
-                                    <tr style={{ backgroundColor: '#0a0a0a' }}>
-                                      {['Player', 'School', 'Age', 'Gender', 'ELO', 'Preferred Partner', 'Team'].map(h => (
-                                        <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: '#888' }}>{h}</th>
-                                      ))}
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {registrations.map(r => (
-                                      <tr key={r.id} className="border-t border-gray-50 hover:bg-[#fffbf0] transition-colors">
-                                        <td className="px-3 py-2 font-medium text-gray-900">{r.player.first_name} {r.player.last_name}</td>
-                                        <td className="px-3 py-2 text-gray-500">{r.player.university || '—'}</td>
-                                        <td className="px-3 py-2 text-gray-500">{r.player.age}</td>
-                                        <td className="px-3 py-2 text-gray-500 capitalize">{r.player.gender?.replace('_', ' ') || '—'}</td>
-                                        <td className="px-3 py-2 font-bold" style={{ color: '#FFB81C' }}>{r.player.current_elo}</td>
-                                        <td className="px-3 py-2 text-gray-500">
-                                          {r.preferred_partner ? `${r.preferred_partner.first_name} ${r.preferred_partner.last_name}` : '—'}
-                                        </td>
-                                        <td className="px-3 py-2 text-gray-500">
-                                          {r.team_id ? <span className="text-green-600 font-medium">Assigned</span> : <span className="text-gray-300">Unassigned</span>}
-                                        </td>
+                              <>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm">
+                                    <thead>
+                                      <tr style={{ backgroundColor: '#0a0a0a' }}>
+                                        {['Player', 'School', 'Age', 'Gender', 'ELO', 'Preferred Partner', 'Team'].map(h => (
+                                          <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: '#888' }}>{h}</th>
+                                        ))}
                                       </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
+                                    </thead>
+                                    <tbody>
+                                      {registrations.map(r => (
+                                        <tr key={r.id} className="border-t border-gray-50 hover:bg-[#fffbf0] transition-colors">
+                                          <td className="px-3 py-2 font-medium text-gray-900">{r.player.first_name} {r.player.last_name}</td>
+                                          <td className="px-3 py-2 text-gray-500">{r.player.university || '—'}</td>
+                                          <td className="px-3 py-2 text-gray-500">{r.player.age}</td>
+                                          <td className="px-3 py-2 text-gray-500 capitalize">{r.player.gender?.replace('_', ' ') || '—'}</td>
+                                          <td className="px-3 py-2 font-bold" style={{ color: '#FFB81C' }}>{r.player.current_elo}</td>
+                                          <td className="px-3 py-2 text-gray-500">
+                                            {r.preferred_partner ? `${r.preferred_partner.first_name} ${r.preferred_partner.last_name}` : '—'}
+                                          </td>
+                                          <td className="px-3 py-2 text-gray-500">
+                                            {r.team_id ? <span className="text-green-600 font-medium">Assigned</span> : <span className="text-gray-300">Unassigned</span>}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+
+                                {/* ── Formed Teams ── */}
+                                {(() => {
+                                  const groups = new Map<string, RegistrationRow[]>();
+                                  for (const r of registrations) {
+                                    if (!r.team_id) continue;
+                                    const list = groups.get(r.team_id) ?? [];
+                                    list.push(r);
+                                    groups.set(r.team_id, list);
+                                  }
+                                  const teamGroups = Array.from(groups.entries());
+                                  if (teamGroups.length === 0) return null;
+                                  return (
+                                    <div className="mt-5">
+                                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2.5">
+                                        Formed Teams
+                                      </p>
+                                      <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                          <thead>
+                                            <tr style={{ backgroundColor: '#0a0a0a' }}>
+                                              {['Team', 'Player 1', 'Player 2', 'Avg ELO'].map(h => (
+                                                <th key={h} className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: '#888' }}>{h}</th>
+                                              ))}
+                                            </tr>
+                                          </thead>
+                                          <tbody>
+                                            {teamGroups.map(([teamId, regs], i) => {
+                                              const [a, b] = regs;
+                                              const avgElo = a && b
+                                                ? Math.round((a.player.current_elo + b.player.current_elo) / 2)
+                                                : a?.player.current_elo ?? 0;
+                                              return (
+                                                <tr key={teamId} className="border-t border-gray-50 hover:bg-[#fffbf0] transition-colors">
+                                                  <td className="px-3 py-2 font-medium text-gray-900">
+                                                    {a?.team?.team_name ?? `Team ${i + 1}`}
+                                                  </td>
+                                                  <td className="px-3 py-2 text-gray-700">
+                                                    {a ? `${a.player.first_name} ${a.player.last_name}` : '—'}
+                                                  </td>
+                                                  <td className="px-3 py-2 text-gray-700">
+                                                    {b ? `${b.player.first_name} ${b.player.last_name}` : '—'}
+                                                  </td>
+                                                  <td className="px-3 py-2 font-bold" style={{ color: '#FFB81C' }}>{avgElo}</td>
+                                                </tr>
+                                              );
+                                            })}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
+                              </>
                             )}
                           </div>
                         )}

@@ -442,7 +442,7 @@ export default function ProfilePage() {
           <>
             <SectionTitle>About</SectionTitle>
             <div className="bg-[#111] border border-white/10 rounded-xl p-4">
-              <p className="text-white/70 text-sm leading-relaxed whitespace-pre-wrap">{player.bio}</p>
+              <p className="text-white/70 text-sm leading-relaxed whitespace-pre-wrap text-justify">{player.bio}</p>
             </div>
           </>
         )}

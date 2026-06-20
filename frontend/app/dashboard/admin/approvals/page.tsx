@@ -242,8 +242,8 @@ export default function AdminApprovalsPage() {
                         }}
                       >
                         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Team 1</p>
-                        <p className="font-medium text-gray-900 text-sm">{playerName(m.team1_player1)}</p>
-                        <p className="font-medium text-gray-900 text-sm">{playerName(m.team1_player2)}</p>
+                        <p className="font-medium text-gray-900 text-sm truncate">{playerName(m.team1_player1)}</p>
+                        <p className="font-medium text-gray-900 text-sm truncate">{playerName(m.team1_player2)}</p>
                       </div>
 
                       <div className="text-center">
@@ -280,8 +280,8 @@ export default function AdminApprovalsPage() {
                         }}
                       >
                         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Team 2</p>
-                        <p className="font-medium text-gray-900 text-sm">{playerName(m.team2_player1)}</p>
-                        <p className="font-medium text-gray-900 text-sm">{playerName(m.team2_player2)}</p>
+                        <p className="font-medium text-gray-900 text-sm truncate">{playerName(m.team2_player1)}</p>
+                        <p className="font-medium text-gray-900 text-sm truncate">{playerName(m.team2_player2)}</p>
                       </div>
                     </div>
 

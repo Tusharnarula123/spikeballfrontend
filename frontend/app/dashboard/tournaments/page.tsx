@@ -17,26 +17,28 @@ interface Tournament {
   affects_elo: boolean;
   start_date: string;
   end_date: string | null;
-  status: 'upcoming' | 'registration_open' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'upcoming' | 'registration_open' | 'registration_closed' | 'in_progress' | 'completed' | 'cancelled';
   registration_count: number;
 }
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
 
 const STATUS_LABEL: Record<Tournament['status'], string> = {
-  upcoming:          'Upcoming',
-  registration_open: 'Registration Open',
-  in_progress:       'In Progress',
-  completed:         'Completed',
-  cancelled:         'Cancelled',
+  upcoming:            'Upcoming',
+  registration_open:   'Registration Open',
+  registration_closed: 'Registration Closed',
+  in_progress:         'In Progress',
+  completed:           'Completed',
+  cancelled:           'Cancelled',
 };
 
 const STATUS_STYLE: Record<Tournament['status'], string> = {
-  upcoming:          'bg-gray-100 text-gray-500',
-  registration_open: 'bg-green-50 text-green-700',
-  in_progress:       'bg-purple-50 text-purple-700',
-  completed:         'bg-blue-50 text-blue-700',
-  cancelled:         'bg-red-50 text-red-500',
+  upcoming:            'bg-gray-100 text-gray-500',
+  registration_open:   'bg-green-50 text-green-700',
+  registration_closed: 'bg-orange-50 text-orange-700',
+  in_progress:         'bg-purple-50 text-purple-700',
+  completed:           'bg-blue-50 text-blue-700',
+  cancelled:           'bg-red-50 text-red-500',
 };
 
 const fmt = (d: string) =>

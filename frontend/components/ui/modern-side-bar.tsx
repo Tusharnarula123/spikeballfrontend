@@ -9,7 +9,6 @@ import {
   UserPlus,
   LogOut,
   Menu,
-  X,
   ChevronLeft,
   ChevronRight,
   Trophy,
@@ -123,14 +122,16 @@ export function Sidebar({
 
   return (
     <>
-      {/* Mobile hamburger */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed top-5 left-5 z-50 p-2.5 rounded-lg bg-[#0a0a0a] shadow-lg md:hidden"
-        aria-label="Toggle sidebar"
-      >
-        {isOpen ? <X className="h-5 w-5 text-[#FFB81C]" /> : <Menu className="h-5 w-5 text-[#FFB81C]" />}
-      </button>
+      {/* Mobile hamburger — only shown to open; closing happens from inside the panel */}
+      {!isOpen && (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="fixed top-5 left-5 z-50 p-2.5 rounded-lg bg-[#0a0a0a] shadow-lg md:hidden"
+          aria-label="Open sidebar"
+        >
+          <Menu className="h-5 w-5 text-[#FFB81C]" />
+        </button>
+      )}
 
       {/* Mobile backdrop */}
       {isOpen && (
@@ -165,6 +166,17 @@ export function Sidebar({
               </div>
             </Link>
           )}
+          {/* Mobile close — left arrow next to the brand name */}
+          {!isCollapsed && (
+            <button
+              onClick={() => setIsOpen(false)}
+              className="md:hidden p-1.5 rounded-md hover:bg-white/10 transition-colors ml-auto flex-shrink-0"
+              aria-label="Close sidebar"
+            >
+              <ChevronLeft className="h-5 w-5 text-[#FFB81C]" />
+            </button>
+          )}
+
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="hidden md:flex p-1.5 rounded-md hover:bg-white/10 transition-colors ml-auto flex-shrink-0"

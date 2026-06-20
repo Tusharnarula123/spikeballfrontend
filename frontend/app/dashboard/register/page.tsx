@@ -34,7 +34,7 @@ interface Tournament {
   team_formation: 'random' | 'self_select';
   start_date: string;
   end_date: string | null;
-  status: 'upcoming' | 'registration_open' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'upcoming' | 'registration_open' | 'registration_closed' | 'in_progress' | 'completed' | 'cancelled';
   registration_count: number;
 }
 
@@ -53,6 +53,7 @@ interface MyRegistration {
 const STATUS_LABELS: Record<Tournament['status'], string> = {
   upcoming: 'Upcoming',
   registration_open: 'Registration Open',
+  registration_closed: 'Registration Closed',
   in_progress: 'In Progress',
   completed: 'Completed',
   cancelled: 'Cancelled',
@@ -61,6 +62,7 @@ const STATUS_LABELS: Record<Tournament['status'], string> = {
 const STATUS_STYLES: Record<Tournament['status'], string> = {
   upcoming: 'bg-gray-50 text-gray-600 border-gray-200',
   registration_open: 'bg-green-50 text-green-700 border-green-200',
+  registration_closed: 'bg-orange-50 text-orange-700 border-orange-200',
   in_progress: 'bg-purple-50 text-purple-700 border-purple-200',
   completed: 'bg-blue-50 text-blue-700 border-blue-200',
   cancelled: 'bg-red-50 text-red-600 border-red-200',
@@ -82,7 +84,7 @@ export default function RegisterPage() {
 
   const refresh = async () => {
     const [tRes, mRes] = await Promise.all([
-      fetchApi('/api/tournaments?status=registration_open,upcoming,in_progress'),
+      fetchApi('/api/tournaments?status=registration_open,registration_closed,upcoming,in_progress'),
       fetchApi('/api/tournaments/me'),
     ]);
     if (tRes.ok) setTournaments(await tRes.json());
@@ -232,7 +234,7 @@ export default function RegisterPage() {
                               </span>
                             </div>
                             {t.description && (
-                              <p className="text-sm text-gray-500 mb-1.5 max-w-xl">{t.description}</p>
+                              <p className="text-sm text-gray-500 mb-1.5 max-w-xl text-justify">{t.description}</p>
                             )}
                             <p className="text-xs text-gray-400 flex items-center gap-1.5">
                               <Calendar className="w-3.5 h-3.5" />
@@ -322,6 +324,8 @@ export default function RegisterPage() {
                             <p className="text-xs text-gray-400">
                               {!isApproved && t.status === 'registration_open'
                                 ? 'Your account is pending admin approval. You\'ll be able to register once approved.'
+                                : t.status === 'registration_closed'
+                                ? 'Registration is closed for this tournament.'
                                 : t.status === 'in_progress'
                                 ? 'This tournament is already underway.'
                                 : 'Registration is not currently open.'}

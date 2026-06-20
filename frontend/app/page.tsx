@@ -200,25 +200,25 @@ function Hero() {
       </div>
 
       {/* CTAs */}
-      <div id="connect" className="mt-10 flex gap-4 animate-fade-in" style={{ animationDelay: '0.7s', opacity: 0 }}>
+      <div id="connect" className="mt-10 flex flex-wrap items-stretch justify-center gap-3 sm:gap-4 animate-fade-in" style={{ animationDelay: '0.7s', opacity: 0 }}>
         <a href="https://www.instagram.com/ouroundnet?igsh=MTdiN3BlNXc1c3FkNw%3D%3D"
           target="_blank" rel="noopener noreferrer"
-          className="px-6 py-3 rounded-xl font-medium text-sm transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-2"
+          className="h-12 px-3 sm:px-6 rounded-xl font-medium text-sm border-2 border-transparent box-border transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap"
           style={{ backgroundColor: '#FFB81C', color: '#0a0a0a' }}>
-          <InstagramIcon className="h-4 w-4" />
+          <InstagramIcon className="h-4 w-4 flex-shrink-0" />
           Instagram
         </a>
         <a href="https://www.youtube.com/@spikeball-p7w5s"
           target="_blank" rel="noopener noreferrer"
-          className="px-6 py-3 rounded-xl font-medium text-sm border border-gray-200 text-gray-600 transition-all duration-200 hover:border-gray-900 hover:text-gray-900 flex items-center gap-2">
-          <YoutubeIcon className="h-4 w-4" />
+          className="h-12 px-3 sm:px-6 rounded-xl font-medium text-sm border-2 border-gray-200 text-gray-600 box-border transition-all duration-200 hover:border-gray-900 hover:text-gray-900 flex items-center justify-center gap-2 whitespace-nowrap">
+          <YoutubeIcon className="h-4 w-4 flex-shrink-0" />
           YouTube
         </a>
         <a href="https://discord.com/invite/Fdvfg26dBs"
           target="_blank" rel="noopener noreferrer"
-          className="px-6 py-3 rounded-xl font-medium text-sm transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-2"
+          className="h-12 px-3 sm:px-6 rounded-xl font-medium text-sm border-2 border-transparent box-border transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center gap-2 whitespace-nowrap"
           style={{ backgroundColor: '#FFB81C', color: '#0a0a0a' }}>
-          <DiscordIcon className="h-4 w-4" />
+          <DiscordIcon className="h-4 w-4 flex-shrink-0" />
           Discord
         </a>
       </div>
@@ -315,48 +315,50 @@ function ScrollPreview() {
               </div>
             </div>
 
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ backgroundColor: '#0a0a0a' }}>
-                  {['Rank', 'Player', 'ELO', 'Record', 'Ratio'].map(h => (
-                    <th key={h} className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: '#888' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-xs text-gray-400">
-                      No ranked players yet — be the first to complete your placement matches!
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[480px]">
+                <thead>
+                  <tr style={{ backgroundColor: '#0a0a0a' }}>
+                    {['Rank', 'Player', 'ELO', 'Record', 'Ratio'].map(h => (
+                      <th key={h} className="px-2.5 sm:px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: '#888' }}>{h}</th>
+                    ))}
                   </tr>
-                ) : filtered.slice(0, 5).map((p) => (
-                  <tr key={p.player_id} className="border-t border-gray-50 hover:bg-[#fffbf0] transition-colors">
-                    <td className="px-4 py-2.5 font-bold text-xs">
-                      {p.rank <= 3 ? ['🥇','🥈','🥉'][p.rank - 1] : <span className="text-gray-400">#{p.rank}</span>}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
-                          style={{ backgroundColor: '#0a0a0a', color: '#FFB81C' }}>
-                          {(p.display_name || '?').charAt(0).toUpperCase()}
+                </thead>
+                <tbody>
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-xs text-gray-400">
+                        No ranked players yet — be the first to complete your placement matches!
+                      </td>
+                    </tr>
+                  ) : filtered.slice(0, 5).map((p) => (
+                    <tr key={p.player_id} className="border-t border-gray-50 hover:bg-[#fffbf0] transition-colors">
+                      <td className="px-2.5 sm:px-4 py-2.5 font-bold text-xs whitespace-nowrap">
+                        {p.rank <= 3 ? ['🥇','🥈','🥉'][p.rank - 1] : <span className="text-gray-400">#{p.rank}</span>}
+                      </td>
+                      <td className="px-2.5 sm:px-4 py-2.5 max-w-[140px] sm:max-w-none">
+                        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                          <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                            style={{ backgroundColor: '#0a0a0a', color: '#FFB81C' }}>
+                            {(p.display_name || '?').charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-medium text-gray-900 text-xs truncate">{p.display_name}</span>
                         </div>
-                        <span className="font-medium text-gray-900 text-xs">{p.display_name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5 font-bold text-xs" style={{ color: '#FFB81C' }}>{p.current_elo}</td>
-                    <td className="px-4 py-2.5 text-xs">
-                      <span className="text-green-600 font-medium">{p.wins}W</span>
-                      <span className="text-gray-300 mx-1">–</span>
-                      <span className="text-red-400 font-medium">{p.losses}L</span>
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500 font-medium">
-                      {p.total_matches > 0 ? Math.round(p.win_rate) : 0}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                      <td className="px-2.5 sm:px-4 py-2.5 font-bold text-xs whitespace-nowrap" style={{ color: '#FFB81C' }}>{p.current_elo}</td>
+                      <td className="px-2.5 sm:px-4 py-2.5 text-xs whitespace-nowrap">
+                        <span className="text-green-600 font-medium">{p.wins}W</span>
+                        <span className="text-gray-300 mx-1">–</span>
+                        <span className="text-red-400 font-medium">{p.losses}L</span>
+                      </td>
+                      <td className="px-2.5 sm:px-4 py-2.5 text-xs text-gray-500 font-medium whitespace-nowrap">
+                        {p.total_matches > 0 ? Math.round(p.win_rate) : 0}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </ContainerScroll>
@@ -427,7 +429,7 @@ function About() {
           {/* Text */}
           <div className="animate-on-scroll space-y-5 text-gray-500 leading-relaxed">
             {content.paragraphs.map((p, i) => (
-              <p key={i}>{p}</p>
+              <p key={i} className="text-justify">{p}</p>
             ))}
           </div>
 
@@ -495,7 +497,7 @@ function Announcements() {
                     )}
                   </div>
                   <h3 className="text-gray-900 font-semibold mb-2 group-hover:text-[#FFB81C] transition-colors">{a.title}</h3>
-                  <p className="text-gray-500 text-sm leading-relaxed">{a.body}</p>
+                  <p className="text-gray-500 text-sm leading-relaxed text-justify">{a.body}</p>
                 </div>
                 <span className="text-gray-300 group-hover:text-[#FFB81C] transition-colors text-lg mt-1">→</span>
               </div>

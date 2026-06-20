@@ -302,13 +302,13 @@ export default function AnalyticsPage() {
                                 backgroundColor: teammateId === t.id ? 'rgba(255,184,28,0.08)' : undefined,
                               }}
                             >
-                              <div>
-                                <p className="text-sm font-semibold text-gray-900">{t.name}</p>
-                                <p className="text-xs text-gray-400">{t.matches} matches together</p>
+                              <div className="min-w-0 flex-1 pr-2">
+                                <p className="text-sm font-semibold text-gray-900 truncate">{t.name}</p>
+                                <p className="text-xs text-gray-400 truncate">{t.matches} matches together</p>
                               </div>
-                              <div className="text-right">
-                                <p className="text-sm font-bold text-gray-900">{t.wins} – {t.losses}</p>
-                                <p className="text-xs text-gray-400">{tWinRate}% win rate</p>
+                              <div className="text-right flex-shrink-0">
+                                <p className="text-sm font-bold text-gray-900 whitespace-nowrap">{t.wins} – {t.losses}</p>
+                                <p className="text-xs text-gray-400 whitespace-nowrap">{tWinRate}% win rate</p>
                               </div>
                             </button>
                           );

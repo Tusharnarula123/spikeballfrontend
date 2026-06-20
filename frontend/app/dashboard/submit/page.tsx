@@ -38,6 +38,9 @@ interface BracketMatch {
   winning_team: 1 | 2 | null;
   score_team1: number | null;
   score_team2: number | null;
+  games: { team1: number; team2: number }[] | null;
+  team1_name: string;
+  team2_name: string;
   team1_player1: { id: string; first_name: string; last_name: string };
   team1_player2: { id: string; first_name: string; last_name: string };
   team2_player1: { id: string; first_name: string; last_name: string };
@@ -54,7 +57,6 @@ interface MyRegistration {
 type Step = 'tournament' | 'match' | 'score' | 'regular';
 
 const fn = (p: { id: string; first_name: string; last_name: string }) => `${p.first_name} ${p.last_name}`;
-const teamLabel = (a: { first_name: string }, b: { first_name: string }) => `${a.first_name} & ${b.first_name}`;
 
 function roundLabel(round: number, total: number): string {
   if (round === total)     return 'Final';
@@ -131,10 +133,13 @@ export default function SubmitScorePage() {
   const [opponent1Id, setOpponent1Id] = useState('');
   const [opponent2Id, setOpponent2Id] = useState('');
 
-  // Score form (shared)
-  const [winningTeam, setWinningTeam] = useState<1 | 2>(1);
-  const [scoreTeam1, setScoreTeam1] = useState('');
-  const [scoreTeam2, setScoreTeam2] = useState('');
+  // Score form (shared) — either a single game, or a best-of-3 (2 of 3 wins)
+  const [format, setFormat] = useState<'single' | 'bo3'>('single');
+  const [gameScores, setGameScores] = useState([
+    { t1: '', t2: '' },
+    { t1: '', t2: '' },
+    { t1: '', t2: '' },
+  ]);
   const [notes, setNotes] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
@@ -206,13 +211,58 @@ export default function SubmitScorePage() {
   const availableFor = (current: string) => players.filter(p => p.id === current || !usedIds.has(p.id));
 
   const resetScore = () => {
-    setWinningTeam(1);
-    setScoreTeam1('');
-    setScoreTeam2('');
+    setFormat('single');
+    setGameScores([{ t1: '', t2: '' }, { t1: '', t2: '' }, { t1: '', t2: '' }]);
     setNotes('');
     setError(null);
     setSuccess(null);
   };
+
+  const activeCount = format === 'single' ? 1 : 3;
+
+  const updateGame = (i: number, side: 't1' | 't2', value: string) => {
+    setGameScores(prev => prev.map((g, idx) => (idx === i ? { ...g, [side]: value } : g)));
+  };
+
+  // Parses + validates the games currently in play (no blanks, no ties).
+  // Single game: that one game decides it. Best-of-3: a team that's already
+  // won the first 2 games has clinched it — game 3 isn't required. A 1-1
+  // split, though, still needs game 3 to break the tie.
+  const parsedGames = (() => {
+    const result: { team1: number; team2: number }[] = [];
+    for (const g of gameScores.slice(0, activeCount)) {
+      if (g.t1 === '' || g.t2 === '') break;
+      const n1 = Number(g.t1);
+      const n2 = Number(g.t2);
+      if (!Number.isFinite(n1) || !Number.isFinite(n2) || n1 < 0 || n2 < 0 || n1 === n2) return null;
+      result.push({ team1: n1, team2: n2 });
+    }
+
+    if (format === 'single') return result.length === 1 ? result : null;
+
+    // Best-of-3
+    if (result.length < 2) return null;
+    if (result.length === 2) {
+      const wins1 = result.filter(g => g.team1 > g.team2).length;
+      if (wins1 === 1) return null; // 1-1 — game 3 still needed
+    }
+    return result;
+  })();
+
+  const previewWinner = (() => {
+    if (!parsedGames) return null;
+    if (parsedGames.length === 1) return parsedGames[0].team1 > parsedGames[0].team2 ? 1 : 2;
+    const wins1 = parsedGames.filter(g => g.team1 > g.team2).length;
+    return wins1 >= 2 ? 1 : 2;
+  })();
+
+  // True once 2 games have been entered and one team swept both — the
+  // 3rd game input becomes optional in that case.
+  const clinchedAfterTwo =
+    format === 'bo3' &&
+    gameScores.slice(0, 2).every(g => g.t1 !== '' && g.t2 !== '') &&
+    gameScores[2].t1 === '' && gameScores[2].t2 === '' &&
+    parsedGames !== null;
 
   const handleSelectTournament = async (t: Tournament) => {
     const reg = regs.find(r => r.tournament.id === t.id) ?? null;
@@ -245,17 +295,19 @@ export default function SubmitScorePage() {
   const handleSubmit = async () => {
     setError(null);
     if (!me) { setError('Could not load your player profile.'); return; }
+    if (!parsedGames) { setError('Enter valid, non-tied scores for every game.'); return; }
 
     let body: Record<string, unknown>;
 
     if (step === 'score' && selectedMatch) {
       // Tournament match — players pre-filled from bracket
       body = {
+        matchId: selectedMatch.id,
         team1Player1Id: selectedMatch.team1_player1.id,
         team1Player2Id: selectedMatch.team1_player2.id,
         team2Player1Id: selectedMatch.team2_player1.id,
         team2Player2Id: selectedMatch.team2_player2.id,
-        winningTeam,
+        games: parsedGames,
         tournamentId: selectedTournament!.id,
       };
     } else {
@@ -269,12 +321,10 @@ export default function SubmitScorePage() {
         team1Player2Id: partnerId,
         team2Player1Id: opponent1Id,
         team2Player2Id: opponent2Id,
-        winningTeam,
+        games: parsedGames,
       };
     }
 
-    if (scoreTeam1 !== '') body.scoreTeam1 = Number(scoreTeam1);
-    if (scoreTeam2 !== '') body.scoreTeam2 = Number(scoreTeam2);
     if (notes) body.notes = notes;
 
     setSubmitting(true);
@@ -302,13 +352,15 @@ export default function SubmitScorePage() {
     }
   };
 
-  // ── Team labels for score form ──
+  // ── Team labels for score form — registered team name if one was set at
+  // sign-up, otherwise "First1 & First2" (regular-season matches always use
+  // the first-name form since there's no tournament team to name). ──
   const scoreTeam1Label = selectedMatch
-    ? teamLabel(selectedMatch.team1_player1, selectedMatch.team1_player2)
+    ? selectedMatch.team1_name
     : me ? `${me.first_name} & ${players.find(p => p.id === partnerId)?.first_name ?? 'Partner'}` : 'Your Team';
 
   const scoreTeam2Label = selectedMatch
-    ? teamLabel(selectedMatch.team2_player1, selectedMatch.team2_player2)
+    ? selectedMatch.team2_name
     : `${players.find(p => p.id === opponent1Id)?.first_name ?? 'Opp 1'} & ${players.find(p => p.id === opponent2Id)?.first_name ?? 'Opp 2'}`;
 
   const myTeamInMatch = selectedMatch && me
@@ -496,8 +548,8 @@ export default function SubmitScorePage() {
                         : m.bracket_round === 99
                           ? 'Finals'
                           : roundLabel(m.bracket_round as number, maxRound);
-                      const t1 = teamLabel(m.team1_player1, m.team1_player2);
-                      const t2 = teamLabel(m.team2_player1, m.team2_player2);
+                      const t1 = m.team1_name;
+                      const t2 = m.team2_name;
                       const myTeam = me && [m.team1_player1.id, m.team1_player2.id].includes(me.id) ? 1 : 2;
 
                       return (
@@ -509,11 +561,11 @@ export default function SubmitScorePage() {
                           <div className="flex-1 min-w-0">
                             <p className="text-[10px] font-bold text-[#FFB81C] uppercase tracking-widest mb-1">{label}</p>
                             <div className="space-y-0.5">
-                              <p className={`text-sm font-semibold ${myTeam === 1 ? 'text-gray-900' : 'text-gray-500'}`}>
+                              <p className={`text-sm font-semibold truncate ${myTeam === 1 ? 'text-gray-900' : 'text-gray-500'}`}>
                                 {myTeam === 1 && <span className="text-[#FFB81C] mr-1">★</span>}{t1}
                               </p>
                               <p className="text-xs text-gray-400">vs</p>
-                              <p className={`text-sm font-semibold ${myTeam === 2 ? 'text-gray-900' : 'text-gray-500'}`}>
+                              <p className={`text-sm font-semibold truncate ${myTeam === 2 ? 'text-gray-900' : 'text-gray-500'}`}>
                                 {myTeam === 2 && <span className="text-[#FFB81C] mr-1">★</span>}{t2}
                               </p>
                             </div>
@@ -559,50 +611,81 @@ export default function SubmitScorePage() {
               <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5">
                 <h2 className="text-lg font-bold text-gray-900">Match Result</h2>
 
-                {/* Winner */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">Winning Team</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {([1, 2] as const).map(t => (
-                      <button
-                        key={t}
-                        onClick={() => setWinningTeam(t)}
-                        className="py-3 px-3 rounded-xl border-2 text-sm font-semibold text-center transition-all"
-                        style={{
-                          borderColor: winningTeam === t ? '#FFB81C' : '#e5e7eb',
-                          color: winningTeam === t ? '#FFB81C' : '#9ca3af',
-                          backgroundColor: winningTeam === t ? 'rgba(255,184,28,0.07)' : 'transparent',
-                        }}
-                      >
-                        {t === myTeamInMatch ? '★ Your Team' : 'Opponents'}
-                        {winningTeam === t && <span className="ml-1 text-[10px]">✓</span>}
-                      </button>
-                    ))}
-                  </div>
+                {/* Format toggle */}
+                <div className="flex rounded-xl border border-gray-200 p-1">
+                  {([
+                    { key: 'single', label: 'Single Game' },
+                    { key: 'bo3', label: 'Best of 3' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setFormat(opt.key)}
+                      className="flex-1 text-xs font-semibold py-2 rounded-lg transition-colors"
+                      style={{
+                        backgroundColor: format === opt.key ? '#FFB81C' : 'transparent',
+                        color: format === opt.key ? '#0a0a0a' : '#9ca3af',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
                 </div>
 
-                {/* Scores */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                      {scoreTeam1Label.split(' & ')[0]}&apos;s team score
-                      <span className="text-gray-400 ml-1 normal-case font-normal">(optional)</span>
-                    </label>
-                    <input type="number" min={0} value={scoreTeam1}
-                      onChange={e => setScoreTeam1(e.target.value)} placeholder="21"
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FFB81C]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                      {scoreTeam2Label.split(' & ')[0]}&apos;s team score
-                      <span className="text-gray-400 ml-1 normal-case font-normal">(optional)</span>
-                    </label>
-                    <input type="number" min={0} value={scoreTeam2}
-                      onChange={e => setScoreTeam2(e.target.value)} placeholder="18"
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FFB81C]"
-                    />
-                  </div>
+                {/* Team headers */}
+                <div className="grid grid-cols-[1fr_auto_1fr] gap-x-3 -mb-2">
+                  <p className="text-xs font-semibold text-gray-500 truncate">
+                    {scoreTeam1Label}{myTeamInMatch === 1 && <span className="text-gray-300"> (you)</span>}
+                  </p>
+                  <span />
+                  <p className="text-xs font-semibold text-gray-500 truncate text-right">
+                    {scoreTeam2Label}{myTeamInMatch === 2 && <span className="text-gray-300"> (you)</span>}
+                  </p>
+                </div>
+
+                {/* Score rows — 1 row for a single game, 3 for best-of-3 */}
+                <div className="space-y-2">
+                  {Array.from({ length: activeCount }).map((_, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_auto_1fr] gap-x-3 items-center">
+                      <input
+                        type="number" min={0} value={gameScores[i].t1}
+                        onChange={e => updateGame(i, 't1', e.target.value)}
+                        placeholder="21"
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#FFB81C]"
+                      />
+                      <span className="text-xs text-gray-400 font-medium px-1 w-6 text-center">
+                        {activeCount > 1 ? `G${i + 1}` : '–'}
+                      </span>
+                      <input
+                        type="number" min={0} value={gameScores[i].t2}
+                        onChange={e => updateGame(i, 't2', e.target.value)}
+                        placeholder="18"
+                        className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-center focus:outline-none focus:ring-2 focus:ring-[#FFB81C]"
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Computed winner — derived from scores, not picked manually */}
+                <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-sm">
+                  {previewWinner ? (
+                    <p className="text-gray-700">
+                      Winner:{' '}
+                      <span className="font-semibold" style={{ color: '#FFB81C' }}>
+                        {previewWinner === 1 ? scoreTeam1Label : scoreTeam2Label}
+                      </span>
+                      {previewWinner === myTeamInMatch ? ' (your team)' : ''}
+                      {clinchedAfterTwo && (
+                        <span className="text-gray-400"> — won the first 2, game 3 isn&apos;t needed</span>
+                      )}
+                    </p>
+                  ) : (
+                    <p className="text-gray-400">
+                      {format === 'single'
+                        ? 'Enter the score to see the winner.'
+                        : 'Enter at least 2 games (a 1-1 split needs game 3).'}
+                    </p>
+                  )}
                 </div>
 
                 {/* Notes */}
@@ -624,7 +707,7 @@ export default function SubmitScorePage() {
 
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting}
+                  disabled={submitting || !parsedGames}
                   className="w-full py-3 rounded-xl bg-[#FFB81C] text-sm font-bold text-gray-900 hover:bg-[#e6a418] transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
                 >
                   {submitting

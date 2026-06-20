@@ -1,6 +1,6 @@
 "use client";
 import React, { useRef } from "react";
-import { useScroll, useTransform, motion, MotionValue } from "framer-motion";
+import { useScroll, useTransform, useSpring, motion, MotionValue } from "framer-motion";
 
 export const ContainerScroll = ({
   titleComponent,
@@ -11,6 +11,15 @@ export const ContainerScroll = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: containerRef });
+  // Raw scroll progress jumps around on mobile (momentum scrolling fires
+  // fewer, larger events than desktop) which made the tilt/scale visibly
+  // stutter. Smoothing it through a spring gives buttery interpolation
+  // between scroll events instead of snapping straight to each new value.
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 260,
+    damping: 35,
+    restDelta: 0.001,
+  });
   const [isMobile, setIsMobile] = React.useState(false);
 
   React.useEffect(() => {
@@ -20,13 +29,17 @@ export const ContainerScroll = ({
     return () => window.removeEventListener("resize", checkMobile);
   }, []);
 
-  const scaleDimensions = () => (isMobile ? [0.7, 1] : [1.05, 1]);
+  const scaleDimensions = () => (isMobile ? [0.85, 1] : [1.05, 1]);
+  // A full 20° tilt combined with the perspective wrapper is what reads as
+  // "glitchy" on phone GPUs (heavy repaint while clipping the table inside)
+  // — keep a much subtler tilt on mobile, full tilt on larger screens.
+  const rotateRange = () => (isMobile ? [8, 0] : [20, 0]);
 
   // Complete rotation at 55% of scroll so card is perfectly flat long before section ends
-  const rotate    = useTransform(scrollYProgress, [0, 0.55], [20, 0]);
-  const scale     = useTransform(scrollYProgress, [0, 0.55], scaleDimensions());
+  const rotate    = useTransform(smoothProgress, [0, 0.55], rotateRange());
+  const scale     = useTransform(smoothProgress, [0, 0.55], scaleDimensions());
   // No vertical translate — keeps card centered
-  const translate = useTransform(scrollYProgress, [0, 1], [0, 0]);
+  const translate = useTransform(smoothProgress, [0, 1], [0, 0]);
 
   return (
     <div
@@ -70,6 +83,8 @@ export const Card = ({
       backgroundColor: "#0a0a0a",
       boxShadow:
         "0 0 #0000004d, 0 9px 20px #0000004a, 0 37px 37px #00000042, 0 84px 50px #00000026, 0 149px 60px #0000000a",
+      willChange: "transform",
+      backfaceVisibility: "hidden",
     }}
     className="max-w-5xl mt-8 mx-auto h-[30rem] md:h-[40rem] w-full p-2 md:p-3 rounded-[30px] shadow-2xl"
   >

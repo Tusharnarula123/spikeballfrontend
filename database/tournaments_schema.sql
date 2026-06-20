@@ -22,8 +22,8 @@ alter table players add column if not exists bio         text;
 --     'random'      — admin randomly pairs registrants into teams
 --     'self_select' — players pick a preferred partner; mutual picks are
 --                      paired automatically, leftovers paired randomly
---   status flow: upcoming -> registration_open -> in_progress -> completed
---                (or -> cancelled at any point)
+--   status flow: upcoming -> registration_open -> registration_closed ->
+--                in_progress -> completed (or -> cancelled at any point)
 -- =============================================================================
 create table if not exists tournaments (
   id              uuid primary key default uuid_generate_v4(),
@@ -41,7 +41,7 @@ create table if not exists tournaments (
   end_date        date,
 
   status          text not null default 'upcoming'
-                  check (status in ('upcoming','registration_open','in_progress','completed','cancelled')),
+                  check (status in ('upcoming','registration_open','registration_closed','in_progress','completed','cancelled')),
 
   created_by      uuid references players (id),
   created_at      timestamptz not null default now(),

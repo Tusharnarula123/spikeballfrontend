@@ -114,6 +114,7 @@ create table if not exists matches (
   winning_team     smallint check (winning_team in (1, 2)),
   score_team1      smallint check (score_team1 >= 0),   -- optional, e.g. 21
   score_team2      smallint check (score_team2 >= 0),
+  games            jsonb,                                -- raw per-game scores for best-of-1/3, e.g. [{"team1":21,"team2":15}]
 
   -- Workflow
   status           text not null default 'pending'

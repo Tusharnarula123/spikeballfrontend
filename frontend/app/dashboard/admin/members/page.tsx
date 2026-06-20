@@ -114,6 +114,25 @@ export default function AdminMembersPage() {
     }
   };
 
+  // Rejecting a pending sign-up deletes the account outright — unlike
+  // suspending an existing member, there's no history worth keeping a
+  // record of, so it's removed from the list entirely rather than re-tagged.
+  const handleReject = async (id: string) => {
+    setBusyId(id);
+    setError(null);
+    try {
+      const res = await fetchApi(`/api/players/${id}/reject`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? 'Failed to reject player');
+        return;
+      }
+      setMembers(prev => prev.filter(m => m.id !== id));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const handleAward = async () => {
     if (!badgeTarget || !selectedBadgeId) return;
     setAwarding(true);
@@ -232,11 +251,12 @@ export default function AdminMembersPage() {
                     Approve
                   </button>
                   <button
-                    onClick={() => setStatus(m.id, 'suspend')}
+                    onClick={() => handleReject(m.id)}
                     disabled={busyId === m.id}
+                    title="Permanently deletes this account — no record is kept"
                     className="flex-1 text-xs font-semibold px-3 py-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-colors flex items-center justify-center gap-1.5 disabled:opacity-60"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    {busyId === m.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
                     Reject
                   </button>
                 </div>

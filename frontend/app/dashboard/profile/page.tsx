@@ -128,9 +128,66 @@ function EditModal({ player, onClose, onSaved, fetchApi }: EditModalProps) {
   });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(player.avatar_url ?? null);
+  const [avatarBusy, setAvatarBusy] = useState(false);
 
   const set = (key: keyof EditForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [key]: e.target.value }));
+
+  // Avatar saves immediately — it's a file upload, not part of the form's
+  // PATCH payload. Same endpoints the dashboard's settings modal uses.
+  const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please choose an image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Image must be under 5 MB.');
+      return;
+    }
+
+    setAvatarBusy(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const res = await fetchApi('/api/players/me/avatar', { method: 'POST', body: formData });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.error ?? 'Failed to upload picture');
+        return;
+      }
+      setAvatarUrl(data.avatar_url ?? null);
+      onSaved({ ...player, ...data });
+    } catch {
+      setError('Network error — please try again');
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    setAvatarBusy(true);
+    setError(null);
+    try {
+      const res = await fetchApi('/api/players/me/avatar', { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.error ?? 'Failed to remove picture');
+        return;
+      }
+      setAvatarUrl(null);
+      onSaved({ ...player, avatar_url: undefined });
+    } catch {
+      setError('Network error — please try again');
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
 
   const handleSave = async () => {
     setError(null);
@@ -188,6 +245,56 @@ function EditModal({ player, onClose, onSaved, fetchApi }: EditModalProps) {
               {error}
             </div>
           )}
+
+          {/* Profile picture — saves on select, separate from the form below */}
+          <div className="flex items-center gap-4 pb-4 border-b border-white/10">
+            <label
+              className={`relative group flex-shrink-0 ${avatarBusy ? 'pointer-events-none' : 'cursor-pointer'}`}
+              title="Change profile picture"
+            >
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarSelect}
+                disabled={avatarBusy}
+                className="sr-only"
+              />
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt="Profile picture"
+                  className="w-16 h-16 rounded-full object-cover ring-2 ring-white/10 group-hover:ring-[#FFB81C]/60 transition-all"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-[#FFB81C] flex items-center justify-center ring-2 ring-white/10 group-hover:ring-[#FFB81C]/60 transition-all">
+                  <User className="w-7 h-7 text-[#0a0a0a]" />
+                </div>
+              )}
+              <span className="absolute inset-0 rounded-full bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                {avatarBusy
+                  ? <Loader2 className="w-5 h-5 text-white animate-spin" />
+                  : <Pencil className="w-4 h-4 text-white" />}
+              </span>
+            </label>
+
+            <div className="min-w-0">
+              <p className="text-white text-sm font-medium">Profile Picture</p>
+              <p className="text-white/40 text-xs mt-0.5">
+                {avatarUrl ? 'Click the photo to replace it' : 'Click to upload — JPG or PNG, under 5 MB'}
+              </p>
+              {avatarUrl && (
+                <button
+                  type="button"
+                  onClick={handleAvatarRemove}
+                  disabled={avatarBusy}
+                  className="mt-1.5 text-xs text-red-400/80 hover:text-red-400 transition-colors disabled:opacity-50"
+                >
+                  Remove photo
+                </button>
+              )}
+            </div>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>

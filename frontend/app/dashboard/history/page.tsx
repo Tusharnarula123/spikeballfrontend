@@ -102,9 +102,11 @@ export default function MatchHistoryPage() {
     >
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
 
-              {/* Filter header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-50">
-                <div>
+              {/* Filter header — heading above the pills on mobile, side by
+                  side from sm up. Cramming both on one row squeezed the
+                  heading and pushed the last pills off-screen. */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-5 py-4 border-b border-gray-50">
+                <div className="min-w-0">
                   <p className="text-xs font-medium tracking-widest uppercase" style={{ color: '#FFB81C' }}>
                     {scope === 'season' ? 'Current Season' : 'All Time'}
                     {' · '}
@@ -112,7 +114,10 @@ export default function MatchHistoryPage() {
                   </p>
                   <h2 className="text-xl font-bold text-gray-900">Recent Matches</h2>
                 </div>
-                <div className="flex gap-2">
+
+                {/* Scrolls horizontally on narrow screens rather than clipping.
+                    -mx-5/px-5 lets pills run edge to edge under the card padding. */}
+                <div className="flex gap-2 overflow-x-auto -mx-5 px-5 sm:mx-0 sm:px-0 sm:flex-wrap sm:justify-end [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   {([
                     { key: 'season', label: 'Current Season' },
                     { key: 'all',    label: 'All Seasons' },
@@ -120,7 +125,7 @@ export default function MatchHistoryPage() {
                     <button
                       key={f.key}
                       onClick={() => handleScopeChange(f.key)}
-                      className="text-xs px-3 py-1 rounded-full border transition-all duration-200"
+                      className="text-xs px-3 py-1.5 rounded-full border transition-all duration-200 whitespace-nowrap flex-shrink-0"
                       style={{
                         borderColor: scope === f.key ? '#FFB81C' : '#e5e5e5',
                         color: scope === f.key ? '#FFB81C' : '#888',
@@ -137,7 +142,7 @@ export default function MatchHistoryPage() {
                     <button
                       key={f.key}
                       onClick={() => setMatchType(f.key)}
-                      className="text-xs px-3 py-1 rounded-full border transition-all duration-200"
+                      className="text-xs px-3 py-1.5 rounded-full border transition-all duration-200 whitespace-nowrap flex-shrink-0"
                       style={{
                         borderColor: matchType === f.key ? '#FFB81C' : '#e5e5e5',
                         color: matchType === f.key ? '#FFB81C' : '#888',
@@ -166,7 +171,7 @@ export default function MatchHistoryPage() {
               ) : (
                 <div className="divide-y divide-gray-50">
                   {visible.map((m) => (
-                    <div key={m.id} className="flex items-center gap-4 px-5 py-4 hover:bg-[#fffbf0] transition-colors">
+                    <div key={m.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-5 py-4 hover:bg-[#fffbf0] transition-colors">
 
                       {/* Result badge */}
                       <div className="flex-shrink-0 w-16">
@@ -195,20 +200,21 @@ export default function MatchHistoryPage() {
                         )}
                       </div>
 
-                      {/* Matchup */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 text-sm">
-                          <div className="flex items-center gap-1.5 font-semibold text-gray-900 truncate">
+                      {/* Matchup — names wrap onto their own lines on mobile
+                          instead of being truncated to "Jeremy M…". */}
+                      <div className="flex-1 min-w-0 order-3 w-full sm:order-none sm:w-auto">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
+                          <div className="flex items-center gap-1.5 font-semibold text-gray-900 min-w-0">
                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none flex-shrink-0"
                               style={{ backgroundColor: '#FFB81C', color: '#0a0a0a' }}>
                               YOU
                             </span>
-                            <span className="truncate">
+                            <span className="min-w-0">
                               {m.partners?.length ? `& ${m.partners.map(p => p.name).join(' & ')}` : '(solo)'}
                             </span>
                           </div>
                           <span className="text-gray-300 flex-shrink-0">vs</span>
-                          <div className="text-gray-500 truncate">
+                          <div className="text-gray-500 min-w-0">
                             {m.opponents.map(o => o.name).join(' & ')}
                           </div>
                         </div>
@@ -220,7 +226,7 @@ export default function MatchHistoryPage() {
                       </div>
 
                       {/* Score */}
-                      <div className="flex-shrink-0 text-right">
+                      <div className="flex-shrink-0 text-right ml-auto">
                         <p className="text-sm font-bold text-gray-900">
                           {m.myScore}<span className="text-gray-300 mx-0.5">–</span>{m.opponentScore}
                         </p>

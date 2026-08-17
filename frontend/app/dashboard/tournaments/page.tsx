@@ -19,6 +19,7 @@ interface Tournament {
   end_date: string | null;
   status: 'upcoming' | 'registration_open' | 'registration_closed' | 'in_progress' | 'completed' | 'cancelled';
   registration_count: number;
+  tournament_type: string;
 }
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
@@ -57,7 +58,8 @@ export default function TournamentsPage() {
     if (!userLoaded || !authLoaded) return;
     fetchApi('/api/tournaments')
       .then(r => r.ok ? r.json() : [])
-      .then(setTournaments)
+      // Rotating competitive sessions live on their own Competitive tab.
+      .then((all: Tournament[]) => setTournaments((all ?? []).filter(t => t.tournament_type !== 'rotating')))
       .finally(() => setLoading(false));
   }, [userLoaded, authLoaded, fetchApi]);
 

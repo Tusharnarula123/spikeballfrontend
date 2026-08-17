@@ -208,7 +208,7 @@ function SubmitModal({ match, myId, tournamentId, onClose, onSuccess, fetchApi }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative max-h-[90vh] overflow-y-auto">
         {/* Close */}
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700">
           <X className="w-5 h-5" />

@@ -96,7 +96,9 @@ function StepBar({ step }: { step: Step }) {
             >
               {i < currentIdx ? <Check className="w-3.5 h-3.5" /> : i + 1}
             </div>
-            <span className={`text-xs font-medium ${i <= currentIdx ? 'text-gray-700' : 'text-gray-400'}`}>
+            {/* Labels squeeze the connector lines on narrow phones — the
+                numbered circles carry the same information. */}
+            <span className={`hidden sm:inline text-xs font-medium ${i <= currentIdx ? 'text-gray-700' : 'text-gray-400'}`}>
               {s.label}
             </span>
           </div>

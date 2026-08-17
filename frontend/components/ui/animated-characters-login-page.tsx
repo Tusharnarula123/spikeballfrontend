@@ -636,7 +636,7 @@ function LoginPage() {
       {/* Forgot password modal */}
       {showForgotPassword && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-[400px] rounded-xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-[400px] rounded-xl bg-white p-6 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-gray-900">
                 {resetStep === "request" ? "Reset your password" : "Enter code & new password"}

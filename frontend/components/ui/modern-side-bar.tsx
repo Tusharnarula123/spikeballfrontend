@@ -18,6 +18,7 @@ import {
   ImageIcon,
   FileText,
   Award,
+  Search,
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -38,13 +39,19 @@ const navigationItems: NavigationItem[] = [
   { id: 'analytics',   name: 'Analytics',     icon: BarChart3, href: '/dashboard/analytics' },
   { id: 'submit',      name: 'Submit Score',  icon: Swords,    href: '/dashboard/submit' },
   { id: 'tournaments', name: 'Tournaments',   icon: Trophy,    href: '/dashboard/tournaments' },
+  { id: 'competitive', name: 'Competitive',   icon: Swords,    href: '/dashboard/competitive' },
   { id: 'register',    name: 'Register',      icon: UserPlus,  href: '/dashboard/register' },
+];
+
+const searchNavigationItems: NavigationItem[] = [
+  { id: 'players', name: 'Players', icon: Search, href: '/dashboard/players' },
 ];
 
 const adminNavigationItems: NavigationItem[] = [
   { id: 'admin-members',     name: 'Members',        icon: Users,         href: '/dashboard/admin/members' },
   { id: 'admin-approvals',   name: 'Approve Scores', icon: ClipboardCheck,href: '/dashboard/admin/approvals' },
   { id: 'admin-tournaments', name: 'Tournaments',    icon: Trophy,        href: '/dashboard/admin/tournaments' },
+  { id: 'admin-competitive', name: 'Competitive',    icon: Swords,        href: '/dashboard/admin/competitive' },
   { id: 'admin-seasons',     name: 'Seasons',        icon: CalendarRange, href: '/dashboard/admin/seasons' },
   { id: 'admin-gallery',     name: 'Gallery',        icon: ImageIcon,     href: '/dashboard/admin/gallery' },
   { id: 'admin-badges',      name: 'Badges',         icon: Award,         href: '/dashboard/admin/badges' },
@@ -190,6 +197,12 @@ export function Sidebar({
         {/* Navigation */}
         <nav className="flex-1 px-3 py-4 overflow-y-auto">
           {renderNavGroup(navigationItems)}
+          <>
+            {isCollapsed
+              ? <div className="my-3 mx-2 border-t border-[#FFB81C]/20" />
+              : <p className="px-3 mt-5 mb-2 text-[10px] font-bold tracking-[0.18em] uppercase text-[#FFB81C]/60">Search</p>}
+            {renderNavGroup(searchNavigationItems)}
+          </>
           {isAdmin && (
             <>
               {isCollapsed

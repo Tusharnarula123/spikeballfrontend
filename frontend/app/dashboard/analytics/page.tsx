@@ -18,8 +18,9 @@ interface MatchEntry {
   myScore: number;
   opponentScore: number;
   eloChange: number | null;
-  partner: { id: string; name: string };
+  partners: { id: string; name: string }[];
   opponents: { id: string; name: string }[];
+  competitive: boolean;
 }
 
 interface EloPoint {
@@ -60,6 +61,7 @@ export default function AnalyticsPage() {
   const [activeSeasonId, setActiveSeasonId] = useState<string | null>(null);
   const [scope, setScope]           = useState<'season' | 'all'>('season');
   const [teammateId, setTeammateId] = useState<string>('all');
+  const [mode, setMode]             = useState<'competitive' | 'casual'>('competitive');
   const [loading, setLoading]       = useState(true);
 
   useEffect(() => {
@@ -76,7 +78,8 @@ export default function AnalyticsPage() {
 
         if (activeRes.ok) {
           const active = await activeRes.json();
-          setActiveSeasonId(active?.id ?? null);
+          // Parent season UUID — matches carry season_id, not the semester id.
+          setActiveSeasonId(active?.season_id ?? active?.season?.id ?? null);
         }
         if (seasonsRes.ok) setSeasons(await seasonsRes.json());
         if (eloRes.ok) setEloHistory(await eloRes.json());
@@ -91,19 +94,24 @@ export default function AnalyticsPage() {
     load();
   }, [userLoaded, authLoaded, fetchApi]);
 
-  // Only approved matches count toward win/loss + ELO stats
-  const approvedMatches = useMemo(() => matches.filter((m) => m.status === 'approved'), [matches]);
+  // Only approved matches count toward win/loss + ELO stats, split by match type
+  const approvedMatches = useMemo(
+    () => matches.filter((m) => m.status === 'approved' && m.competitive === (mode === 'competitive')),
+    [matches, mode],
+  );
 
   // Unique teammates with aggregate record (across all seasons, all matches)
   const teammates = useMemo(() => {
     const map = new Map<string, { id: string; name: string; wins: number; losses: number; matches: number }>();
     for (const m of approvedMatches) {
-      const p = m.partner;
-      if (!map.has(p.id)) map.set(p.id, { id: p.id, name: p.name, wins: 0, losses: 0, matches: 0 });
-      const entry = map.get(p.id)!;
-      entry.matches += 1;
-      if (m.result === 'win') entry.wins += 1;
-      else if (m.result === 'loss') entry.losses += 1;
+      // A 3-player team credits both teammates.
+      for (const p of m.partners ?? []) {
+        if (!map.has(p.id)) map.set(p.id, { id: p.id, name: p.name, wins: 0, losses: 0, matches: 0 });
+        const entry = map.get(p.id)!;
+        entry.matches += 1;
+        if (m.result === 'win') entry.wins += 1;
+        else if (m.result === 'loss') entry.losses += 1;
+      }
     }
     return Array.from(map.values()).sort((a, b) => b.matches - a.matches);
   }, [approvedMatches]);
@@ -112,7 +120,7 @@ export default function AnalyticsPage() {
   const filteredMatches = useMemo(() => {
     return approvedMatches.filter((m) => {
       if (scope === 'season' && activeSeasonId && m.season_id !== activeSeasonId) return false;
-      if (teammateId !== 'all' && m.partner.id !== teammateId) return false;
+      if (teammateId !== 'all' && !(m.partners ?? []).some(p => p.id === teammateId)) return false;
       return true;
     });
   }, [approvedMatches, scope, activeSeasonId, teammateId]);
@@ -121,8 +129,10 @@ export default function AnalyticsPage() {
   const losses = filteredMatches.filter((m) => m.result === 'loss').length;
   const winRate = wins + losses > 0 ? ((wins / (wins + losses)) * 100).toFixed(1) : '0.0';
 
-  // ELO history points to plot, scoped + teammate-filtered
+  // ELO history points to plot, scoped + teammate-filtered.
+  // Casual matches never touch ELO, so there is nothing to plot in that mode.
   const eloChartData = useMemo(() => {
+    if (mode === 'casual') return [];
     const sorted = [...eloHistory].sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
 
     let points = sorted;
@@ -134,7 +144,7 @@ export default function AnalyticsPage() {
     }
 
     return points.map((p) => ({ date: p.recorded_at, elo: p.elo_after }));
-  }, [eloHistory, teammateId, filteredMatches, scope, activeSeasonId]);
+  }, [eloHistory, teammateId, filteredMatches, scope, activeSeasonId, mode]);
 
   // Season divider markers — only meaningful for "All Seasons" + no teammate filter
   const seasonDividers = useMemo(() => {
@@ -169,7 +179,7 @@ export default function AnalyticsPage() {
               <>
                 {/* Filters */}
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     {([
                       { key: 'season', label: 'This Season' },
                       { key: 'all',    label: 'All Seasons' },
@@ -182,6 +192,24 @@ export default function AnalyticsPage() {
                           borderColor: scope === f.key ? '#FFB81C' : '#e5e5e5',
                           color: scope === f.key ? '#FFB81C' : '#888',
                           backgroundColor: scope === f.key ? 'rgba(255,184,28,0.08)' : 'transparent',
+                        }}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                    <span className="w-px bg-gray-200 mx-1 self-stretch" />
+                    {([
+                      { key: 'competitive', label: 'Competitive' },
+                      { key: 'casual',      label: 'Non-Competitive' },
+                    ] as const).map((f) => (
+                      <button
+                        key={f.key}
+                        onClick={() => { setMode(f.key); setTeammateId('all'); }}
+                        className="text-xs px-3 py-1 rounded-full border transition-all duration-200"
+                        style={{
+                          borderColor: mode === f.key ? '#FFB81C' : '#e5e5e5',
+                          color: mode === f.key ? '#FFB81C' : '#888',
+                          backgroundColor: mode === f.key ? 'rgba(255,184,28,0.08)' : 'transparent',
                         }}
                       >
                         {f.label}
@@ -206,12 +234,13 @@ export default function AnalyticsPage() {
 
                 {/* Stat cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <StatCard label="Current ELO" value={currentElo ?? '—'} />
+                  <StatCard label="Current ELO" value={currentElo ?? '—'}
+                    sub={mode === 'casual' ? 'not affected by casual play' : undefined} />
                   <StatCard
                     label="ELO Change"
                     value={eloChartData.length > 1 ? `${eloDelta >= 0 ? '+' : ''}${eloDelta}` : '—'}
                     accent={eloDelta > 0 ? 'up' : eloDelta < 0 ? 'down' : undefined}
-                    sub={scope === 'season' ? 'this season' : 'over period shown'}
+                    sub={mode === 'casual' ? 'not affected by casual play' : scope === 'season' ? 'this season' : 'over period shown'}
                   />
                   <StatCard label="Record" value={`${wins} – ${losses}`} sub="Wins – Losses" />
                   <StatCard label="Win Rate" value={`${winRate}%`} sub={`${wins + losses} matches`} />
@@ -222,9 +251,10 @@ export default function AnalyticsPage() {
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <p className="text-xs font-medium tracking-widest uppercase" style={{ color: '#FFB81C' }}>
-                        {teammateId !== 'all' && selectedTeammate
+                        {(teammateId !== 'all' && selectedTeammate
                           ? `With ${selectedTeammate.name}`
-                          : scope === 'season' ? 'Current Season' : 'All Time'}
+                          : scope === 'season' ? 'Current Season' : 'All Time')
+                          + (mode === 'casual' ? ' · Non-Competitive' : '')}
                       </p>
                       <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                         <TrendingUp className="w-5 h-5 text-[#FFB81C]" />
@@ -242,9 +272,11 @@ export default function AnalyticsPage() {
                     data={eloChartData}
                     dividers={seasonDividers}
                     emptyMessage={
-                      teammateId !== 'all'
-                        ? `No matches played with ${selectedTeammate?.name ?? 'this teammate'} yet`
-                        : 'No ELO history yet — play a match to get started!'
+                      mode === 'casual'
+                        ? 'Non-competitive matches don’t affect ELO'
+                        : teammateId !== 'all'
+                          ? `No matches played with ${selectedTeammate?.name ?? 'this teammate'} yet`
+                          : 'No ELO history yet — play a match to get started!'
                     }
                   />
                 </div>
@@ -254,9 +286,10 @@ export default function AnalyticsPage() {
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 flex flex-col items-center">
                     <div className="self-start mb-2">
                       <p className="text-xs font-medium tracking-widest uppercase" style={{ color: '#FFB81C' }}>
-                        {teammateId !== 'all' && selectedTeammate
+                        {(teammateId !== 'all' && selectedTeammate
                           ? `With ${selectedTeammate.name}`
-                          : scope === 'season' ? 'Current Season' : 'All Time'}
+                          : scope === 'season' ? 'Current Season' : 'All Time')
+                          + (mode === 'casual' ? ' · Non-Competitive' : '')}
                       </p>
                       <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                         <BarChart3 className="w-5 h-5 text-[#FFB81C]" />
@@ -288,7 +321,9 @@ export default function AnalyticsPage() {
                       </h2>
                     </div>
                     {teammates.length === 0 ? (
-                      <p className="text-sm text-gray-400 text-center py-8">No partnered matches yet</p>
+                      <p className="text-sm text-gray-400 text-center py-8">
+                        No {mode === 'casual' ? 'non-competitive' : 'competitive'} partnered matches yet
+                      </p>
                     ) : (
                       <div className="divide-y divide-gray-50">
                         {teammates.map((t) => {

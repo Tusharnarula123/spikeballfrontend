@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { HeroSection } from '@/components/ui/feature-carousel'
@@ -114,7 +114,7 @@ function Navbar() {
 
         {/* Desktop nav links */}
         <div className="hidden md:flex items-center gap-8 text-sm text-gray-500">
-          {[['Rankings', '#rankings'], ['About', '#about'], ['Announcements', '#announcements'], ['Gallery', '#gallery']].map(([label, href]) => (
+          {[['Rankings', '#rankings'], ['Players', '#players'], ['About', '#about'], ['Announcements', '#announcements']].map(([label, href]) => (
             <a key={label} href={href}
               className="hover:text-gray-900 transition-colors duration-200 hover:text-[#FFB81C]">
               {label}
@@ -146,7 +146,7 @@ function Navbar() {
       {/* Mobile menu */}
       {menuOpen && (
         <div className="md:hidden bg-white border-t border-gray-100 px-6 py-4 flex flex-col gap-4 shadow-sm">
-          {[['Rankings', '#rankings'], ['About', '#about'], ['Announcements', '#announcements'], ['Gallery', '#gallery']].map(([label, href]) => (
+          {[['Rankings', '#rankings'], ['Players', '#players'], ['About', '#about'], ['Announcements', '#announcements']].map(([label, href]) => (
             <a key={label} href={href} className="text-gray-500 hover:text-gray-900 text-sm"
               onClick={() => setMenuOpen(false)}>{label}</a>
           ))}
@@ -366,6 +366,97 @@ function ScrollPreview() {
   )
 }
 
+// ─── Player Search ────────────────────────────────────────────────────────────
+interface PlayerSearchResult {
+  id: string
+  first_name: string
+  last_name: string
+  avatar_url: string | null
+  current_elo: number
+  placement_matches_played: number
+}
+
+function PlayerSearch() {
+  const [q, setQ] = useState('')
+  const [results, setResults] = useState<PlayerSearchResult[]>([])
+  const [loading, setLoading] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (!q.trim()) { setResults([]); return }
+    if (debounce.current) clearTimeout(debounce.current)
+    debounce.current = setTimeout(() => {
+      setLoading(true)
+      apiFetch(`/api/players/search?q=${encodeURIComponent(q)}`)
+        .then(r => r.json())
+        .then(data => { setResults(Array.isArray(data) ? data : []); setLoading(false) })
+        .catch(() => setLoading(false))
+    }, 300)
+  }, [q])
+
+  const show = focused && (q.trim().length > 0)
+
+  return (
+    <section id="players" className="py-24 px-6 bg-white">
+      <div className="max-w-2xl mx-auto">
+        <div className="animate-on-scroll text-center mb-10">
+          <p className="text-xs tracking-[0.3em] uppercase mb-3" style={{ color: '#FFB81C' }}>Find a Player</p>
+          <h2 className="text-3xl md:text-4xl font-bold text-gray-900">Search Players</h2>
+          <p className="text-gray-400 text-sm mt-3">Look up any club member's stats and ELO</p>
+        </div>
+
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="Search by name…"
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 150)}
+            className="w-full border border-gray-200 rounded-2xl px-5 py-4 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-[#FFB81C] focus:ring-2 focus:ring-[#FFB81C]/20 transition-all"
+          />
+          {loading && (
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-[#FFB81C] border-t-transparent rounded-full animate-spin" />
+          )}
+
+          {show && (
+            <div className="absolute top-full mt-2 left-0 right-0 bg-white border border-gray-100 rounded-2xl shadow-lg overflow-hidden z-10">
+              {results.length === 0 && !loading ? (
+                <p className="text-center text-gray-400 text-sm py-6">No players found</p>
+              ) : results.map(p => {
+                const initials = `${p.first_name[0] ?? ''}${p.last_name[0] ?? ''}`.toUpperCase()
+                const isRanked = p.placement_matches_played >= 5
+                return (
+                  <Link key={p.id} href={`/players/${p.id}`}
+                    className="flex items-center gap-4 px-5 py-3.5 hover:bg-[#fffbf0] transition-colors border-t border-gray-50 first:border-t-0">
+                    {p.avatar_url ? (
+                      <Image src={p.avatar_url} alt={p.first_name} width={36} height={36}
+                        className="rounded-full object-cover w-9 h-9 flex-shrink-0" />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
+                        style={{ backgroundColor: '#0a0a0a', color: '#FFB81C' }}>
+                        {initials}
+                      </div>
+                    )}
+                    <span className="flex-1 font-medium text-gray-900 text-sm">{p.first_name} {p.last_name}</span>
+                    {isRanked ? (
+                      <span className="text-xs font-bold" style={{ color: '#FFB81C' }}>{p.current_elo} ELO</span>
+                    ) : (
+                      <span className="text-xs text-gray-400">Placement {p.placement_matches_played}/5</span>
+                    )}
+                    <span className="text-gray-300 text-sm">→</span>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 // ─── About ────────────────────────────────────────────────────────────────────
 interface AboutStat {
   value: string
@@ -567,6 +658,7 @@ export default function HomePage() {
       <Navbar />
       <Hero />
       <ScrollPreview />
+      <PlayerSearch />
       <About />
       <Announcements />
       <Gallery />

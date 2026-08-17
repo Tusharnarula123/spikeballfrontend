@@ -45,6 +45,13 @@ interface SeasonStats {
   total_matches: number;
 }
 
+interface MyMatch {
+  status: string;
+  result: 'win' | 'loss' | null;
+  season_id: string;
+  competitive: boolean;
+}
+
 interface AlltimeStats {
   totalWins: number;
   totalLosses: number;
@@ -165,7 +172,7 @@ function EditModal({ player, onClose, onSaved, fetchApi }: EditModalProps) {
       {/* backdrop */}
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative z-10 w-full max-w-lg bg-[#111] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative z-10 w-full max-w-lg bg-[#111] border border-white/10 rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
           <h2 className="text-white font-bold text-lg">Edit Profile</h2>
@@ -287,6 +294,9 @@ export default function ProfilePage() {
   const [alltime, setAlltime]         = useState<AlltimeStats | null>(null);
   const [loading, setLoading]         = useState(true);
   const [editOpen, setEditOpen]       = useState(false);
+  const [myMatches, setMyMatches]     = useState<MyMatch[]>([]);
+  const [activeSeasonId, setActiveSeasonId] = useState<string | null>(null);
+  const [mode, setMode]               = useState<'competitive' | 'casual'>('competitive');
 
   useEffect(() => {
     if (!userLoaded || !authLoaded) return;
@@ -297,10 +307,18 @@ export default function ProfilePage() {
         const playerData: Player | null = playerRes.ok ? await playerRes.json() : null;
         if (playerData) setPlayer(playerData);
 
-        const [lbRes, atRes] = await Promise.all([
+        const [lbRes, atRes, mmRes, asRes] = await Promise.all([
           apiFetch('/api/leaderboard'),
           fetchApi('/api/players/me/alltime'),
+          fetchApi('/api/matches/me'),
+          apiFetch('/api/seasons/active'),
         ]);
+
+        if (mmRes.ok) setMyMatches(await mmRes.json());
+        if (asRes.ok) {
+          const active = await asRes.json();
+          setActiveSeasonId(active?.season_id ?? active?.season?.id ?? null);
+        }
 
         if (lbRes.ok && playerData) {
           const rows: (SeasonStats & { player_id: string })[] = await lbRes.json();
@@ -352,15 +370,34 @@ export default function ProfilePage() {
   const sWins       = seasonStats?.wins   ?? 0;
   const sLosses     = seasonStats?.losses ?? 0;
   const sMatches    = seasonStats?.total_matches ?? (sWins + sLosses);
-  const sWinPct     = sMatches > 0 ? ((sWins / sMatches) * 100).toFixed(1) : '0.0';
   const sRank       = seasonStats?.rank ?? '—';
 
   const aWins       = alltime?.totalWins   ?? 0;
   const aLosses     = alltime?.totalLosses ?? 0;
   const aMatches    = alltime?.totalMatches ?? 0;
-  const aWinPct     = aMatches > 0 ? ((aWins / aMatches) * 100).toFixed(1) : '0.0';
   const peakElo     = alltime?.peakElo ?? currentElo;
   const seasonsPlayed = alltime?.seasonsPlayed ?? 0;
+
+  // Non-competitive (casual) record, derived from my approved matches
+  const casualAll    = myMatches.filter(m => m.status === 'approved' && !m.competitive);
+  const casualSeason = activeSeasonId ? casualAll.filter(m => m.season_id === activeSeasonId) : casualAll;
+  const record = (list: MyMatch[]) => {
+    const w = list.filter(m => m.result === 'win').length;
+    return { w, l: list.length - w };
+  };
+  const { w: csW, l: csL } = record(casualSeason);
+  const { w: caW, l: caL } = record(casualAll);
+
+  // Mode-aware display values
+  const comp     = mode === 'competitive';
+  const dSW      = comp ? sWins : csW;
+  const dSL      = comp ? sLosses : csL;
+  const dSM      = comp ? sMatches : csW + csL;
+  const dSWinPct = dSM > 0 ? ((dSW / dSM) * 100).toFixed(1) : '0.0';
+  const dAW      = comp ? aWins : caW;
+  const dAL      = comp ? aLosses : caL;
+  const dAM      = comp ? aMatches : caW + caL;
+  const dAWinPct = dAM > 0 ? ((dAW / dAM) * 100).toFixed(1) : '0.0';
 
   const badges = player?.player_badges ?? [];
 
@@ -379,7 +416,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex">
+    <div className="h-screen bg-[#0a0a0a] flex overflow-hidden">
       <Sidebar
         playerName={fullName}
         playerInitials={initials}
@@ -388,7 +425,8 @@ export default function ProfilePage() {
       />
 
       {/* Main content */}
-      <main className="flex-1 md:ml-0 overflow-y-auto p-6 md:p-8 max-w-3xl mx-auto w-full">
+      <main className="flex-1 md:ml-0 overflow-y-auto">
+        <div className="max-w-3xl mx-auto p-6 md:p-8">
 
         {/* ── Profile header ── */}
         <div className="flex items-center gap-5 mb-8">
@@ -447,9 +485,30 @@ export default function ProfilePage() {
           </>
         )}
 
+        {/* ── Competitive / Non-Competitive toggle ── */}
+        <div className="flex gap-2 mt-6">
+          {([
+            { key: 'competitive', label: 'Competitive' },
+            { key: 'casual',      label: 'Non-Competitive' },
+          ] as const).map(f => (
+            <button
+              key={f.key}
+              onClick={() => setMode(f.key)}
+              className="text-xs px-3 py-1 rounded-full border transition-all duration-200"
+              style={{
+                borderColor:     mode === f.key ? '#FFB81C' : 'rgba(255,255,255,0.1)',
+                color:           mode === f.key ? '#FFB81C' : 'rgba(255,255,255,0.4)',
+                backgroundColor: mode === f.key ? 'rgba(255,184,28,0.08)' : 'transparent',
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
         {/* ── Current Season ── */}
-        <SectionTitle>Current Season</SectionTitle>
-        {inPlacement && (
+        <SectionTitle>Current Season{comp ? '' : ' · Non-Competitive'}</SectionTitle>
+        {comp && inPlacement && (
           <div className="bg-[#111] border border-[#FFB81C]/20 rounded-xl px-4 py-3 mb-3 flex items-center gap-3">
             <div className="w-2 h-2 rounded-full bg-[#FFB81C] flex-shrink-0" />
             <p className="text-[#FFB81C] text-xs font-semibold">
@@ -459,31 +518,34 @@ export default function ProfilePage() {
           </div>
         )}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <StatCard label="ELO"  value={inPlacement ? '—' : currentElo} gold={!inPlacement}
-            sub={inPlacement ? `${placementsPlayed}/${PLACEMENT_MATCHES} placement matches` : undefined} />
-          <StatCard label="Rank" value={inPlacement ? '—' : (sRank !== '—' ? `#${sRank}` : '—')}
-            sub={inPlacement ? 'Unranked during placement' : undefined} />
-          <StatCard label="Record"     value={`${sWins} — ${sLosses}`} sub="Wins — Losses" />
-          <StatCard label="Win Rate"   value={`${sWinPct}%`} />
-          <StatCard label="Matches Played" value={sMatches} />
+          <StatCard label="ELO"
+            value={comp ? (inPlacement ? '—' : currentElo) : '—'} gold={comp && !inPlacement}
+            sub={!comp ? 'Competitive only' : inPlacement ? `${placementsPlayed}/${PLACEMENT_MATCHES} placement matches` : undefined} />
+          <StatCard label="Rank"
+            value={comp && !inPlacement && sRank !== '—' ? `#${sRank}` : '—'}
+            sub={!comp ? 'Competitive only' : inPlacement ? 'Unranked during placement' : undefined} />
+          <StatCard label="Record"     value={`${dSW} — ${dSL}`} sub="Wins — Losses" />
+          <StatCard label="Win Rate"   value={`${dSWinPct}%`} />
+          <StatCard label="Matches Played" value={dSM} />
           <StatCard label="W / L Ratio"
-            value={sLosses === 0 ? (sWins > 0 ? `${sWins}.0` : '—') : (sWins / sLosses).toFixed(2)}
-            sub={sLosses === 0 && sWins > 0 ? 'Perfect record' : undefined}
+            value={dSL === 0 ? (dSW > 0 ? `${dSW}.0` : '—') : (dSW / dSL).toFixed(2)}
+            sub={dSL === 0 && dSW > 0 ? 'Perfect record' : undefined}
           />
         </div>
 
         {/* ── All-Time ── */}
-        <SectionTitle>All-Time</SectionTitle>
+        <SectionTitle>All-Time{comp ? '' : ' · Non-Competitive'}</SectionTitle>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          <StatCard label="Peak ELO" value={inPlacement ? '—' : peakElo} gold={!inPlacement}
-            sub={inPlacement ? 'Available after placement' : undefined} />
+          <StatCard label="Peak ELO"
+            value={comp ? (inPlacement ? '—' : peakElo) : '—'} gold={comp && !inPlacement}
+            sub={!comp ? 'Competitive only' : inPlacement ? 'Available after placement' : undefined} />
           <StatCard label="Seasons Played" value={seasonsPlayed} />
-          <StatCard label="Record"         value={`${aWins} — ${aLosses}`} sub="Wins — Losses" />
-          <StatCard label="Win Rate"       value={`${aWinPct}%`} />
-          <StatCard label="Total Matches"  value={aMatches} />
+          <StatCard label="Record"         value={`${dAW} — ${dAL}`} sub="Wins — Losses" />
+          <StatCard label="Win Rate"       value={`${dAWinPct}%`} />
+          <StatCard label="Total Matches"  value={dAM} />
           <StatCard label="W / L Ratio"
-            value={aLosses === 0 ? (aWins > 0 ? `${aWins}.0` : '—') : (aWins / aLosses).toFixed(2)}
-            sub={aLosses === 0 && aWins > 0 ? 'Perfect record' : undefined}
+            value={dAL === 0 ? (dAW > 0 ? `${dAW}.0` : '—') : (dAW / dAL).toFixed(2)}
+            sub={dAL === 0 && dAW > 0 ? 'Perfect record' : undefined}
           />
         </div>
 
@@ -523,6 +585,7 @@ export default function ProfilePage() {
         )}
 
         <div className="h-8" />
+        </div>
       </main>
 
       {/* Edit modal */}

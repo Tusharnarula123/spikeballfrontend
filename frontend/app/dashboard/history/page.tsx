@@ -16,7 +16,8 @@ interface MatchEntry {
   myScore: number;
   opponentScore: number;
   eloChange: number | null;
-  partner: { id: string; name: string };
+  competitive: boolean;
+  partners: { id: string; name: string }[];
   opponents: { id: string; name: string }[];
 }
 
@@ -34,6 +35,7 @@ export default function MatchHistoryPage() {
   const [seasons, setSeasons]     = useState<Season[]>([]);
   const [activeSeasonId, setActiveSeasonId] = useState<string | null>(null);
   const [scope, setScope]         = useState<'season' | 'all'>('season');
+  const [matchType, setMatchType] = useState<'competitive' | 'casual'>('competitive');
   const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
@@ -49,7 +51,9 @@ export default function MatchHistoryPage() {
         let activeId: string | null = null;
         if (activeRes.ok) {
           const active = await activeRes.json();
-          activeId = active?.id ?? null;
+          // Use the parent season UUID so the filter matches season_id on matches.
+          // active.season_id is the season UUID; active.id is the semester UUID.
+          activeId = active?.season_id ?? active?.season?.id ?? null;
           setActiveSeasonId(activeId);
         }
         if (seasonsRes.ok) {
@@ -87,6 +91,8 @@ export default function MatchHistoryPage() {
 
   const seasonName = (id: string) => seasons.find(s => s.id === id)?.name ?? 'Unknown Season';
 
+  const visible = matches.filter(m => m.competitive === (matchType === 'competitive'));
+
   return (
     <DashboardShell
       title="Match History"
@@ -101,12 +107,14 @@ export default function MatchHistoryPage() {
                 <div>
                   <p className="text-xs font-medium tracking-widest uppercase" style={{ color: '#FFB81C' }}>
                     {scope === 'season' ? 'Current Season' : 'All Time'}
+                    {' · '}
+                    {matchType === 'competitive' ? 'Competitive' : 'Non-Competitive'}
                   </p>
                   <h2 className="text-xl font-bold text-gray-900">Recent Matches</h2>
                 </div>
                 <div className="flex gap-2">
                   {([
-                    { key: 'season', label: 'This Season' },
+                    { key: 'season', label: 'Current Season' },
                     { key: 'all',    label: 'All Seasons' },
                   ] as const).map(f => (
                     <button
@@ -117,6 +125,23 @@ export default function MatchHistoryPage() {
                         borderColor: scope === f.key ? '#FFB81C' : '#e5e5e5',
                         color: scope === f.key ? '#FFB81C' : '#888',
                         backgroundColor: scope === f.key ? 'rgba(255,184,28,0.08)' : 'transparent',
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                  {([
+                    { key: 'competitive', label: 'Competitive' },
+                    { key: 'casual',      label: 'Non-Competitive' },
+                  ] as const).map(f => (
+                    <button
+                      key={f.key}
+                      onClick={() => setMatchType(f.key)}
+                      className="text-xs px-3 py-1 rounded-full border transition-all duration-200"
+                      style={{
+                        borderColor: matchType === f.key ? '#FFB81C' : '#e5e5e5',
+                        color: matchType === f.key ? '#FFB81C' : '#888',
+                        backgroundColor: matchType === f.key ? 'rgba(255,184,28,0.08)' : 'transparent',
                       }}
                     >
                       {f.label}
@@ -134,9 +159,13 @@ export default function MatchHistoryPage() {
                 <div className="px-4 py-16 text-center text-sm text-gray-400">
                   No matches yet — submit a score to start building your history!
                 </div>
+              ) : visible.length === 0 ? (
+                <div className="px-4 py-16 text-center text-sm text-gray-400">
+                  No {matchType === 'competitive' ? 'competitive' : 'non-competitive'} matches in this range.
+                </div>
               ) : (
                 <div className="divide-y divide-gray-50">
-                  {matches.map((m) => (
+                  {visible.map((m) => (
                     <div key={m.id} className="flex items-center gap-4 px-5 py-4 hover:bg-[#fffbf0] transition-colors">
 
                       {/* Result badge */}
@@ -174,7 +203,9 @@ export default function MatchHistoryPage() {
                               style={{ backgroundColor: '#FFB81C', color: '#0a0a0a' }}>
                               YOU
                             </span>
-                            <span className="truncate">& {m.partner.name}</span>
+                            <span className="truncate">
+                              {m.partners?.length ? `& ${m.partners.map(p => p.name).join(' & ')}` : '(solo)'}
+                            </span>
                           </div>
                           <span className="text-gray-300 flex-shrink-0">vs</span>
                           <div className="text-gray-500 truncate">
@@ -205,10 +236,10 @@ export default function MatchHistoryPage() {
               )}
             </div>
 
-            {!loading && matches.length > 0 && (
+            {!loading && visible.length > 0 && (
               <p className="text-center text-xs text-gray-400 mt-4 flex items-center justify-center gap-1.5">
                 <Trophy className="w-3.5 h-3.5 text-[#FFB81C]" />
-                Showing your {matches.length} most recent {scope === 'season' ? 'matches this season' : 'matches'}
+                Showing your {visible.length} most recent {matchType === 'competitive' ? 'competitive' : 'non-competitive'} {scope === 'season' ? 'matches in the current season' : 'matches across all seasons'}
               </p>
             )}
     </DashboardShell>

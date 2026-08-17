@@ -208,7 +208,11 @@ export default function RegisterPage() {
                     const isRegistered = !!reg;
                     const isBusy = busyId === t.id;
                     const isApproved = player?.status === 'active';
-                    const canRegister = t.status === 'registration_open' && !isRegistered && isApproved;
+                    // Late signups allowed while play is under way — existing
+                    // matchups aren't disturbed, new matches get appended.
+                    const canRegister =
+                      (t.status === 'registration_open' || t.status === 'in_progress') &&
+                      !isRegistered && isApproved;
                     const canUnregister = isRegistered && t.status !== 'in_progress' && t.status !== 'completed';
 
                     return (

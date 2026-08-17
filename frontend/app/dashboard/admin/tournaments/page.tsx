@@ -20,7 +20,7 @@ interface Tournament {
   is_casual: boolean;
   affects_elo: boolean;
   team_formation: 'random' | 'self_select';
-  tournament_type: 'bracket' | 'round_robin';
+  tournament_type: 'bracket' | 'round_robin' | 'rotating';
   season_id: string | null;
   start_date: string;
   end_date: string | null;
@@ -68,7 +68,7 @@ const emptyForm = {
   isCasual: false,
   affectsElo: true,
   teamFormation: 'random' as 'random' | 'self_select',
-  tournamentType: 'bracket' as 'bracket' | 'round_robin',
+  tournamentType: 'bracket' as 'bracket' | 'round_robin' | 'rotating',
   seasonId: '',
   startDate: '',
   endDate: '',
@@ -93,6 +93,7 @@ export default function AdminTournamentsPage() {
   const [bracketMsg, setBracketMsg] = useState<Record<string, string>>({});
   const [rrMsg, setRrMsg] = useState<Record<string, string>>({});
   const [finalsMsg, setFinalsMsg] = useState<Record<string, string>>({});
+  const [lateMsg, setLateMsg] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
 
   // Edit modal
@@ -120,7 +121,11 @@ export default function AdminTournamentsPage() {
           fetchApi('/api/tournaments'),
           apiFetch('/api/seasons'),
         ]);
-        if (tRes.ok) setTournaments(await tRes.json());
+        // Rotating competitive sessions have their own admin tab.
+        if (tRes.ok) {
+          const all: Tournament[] = await tRes.json();
+          setTournaments((all ?? []).filter(t => t.tournament_type !== 'rotating'));
+        }
         if (sRes.ok) setSeasons(await sRes.json());
       } catch {
         // silently fail
@@ -133,7 +138,10 @@ export default function AdminTournamentsPage() {
 
   const refreshTournaments = async () => {
     const res = await fetchApi('/api/tournaments');
-    if (res.ok) setTournaments(await res.json());
+    if (res.ok) {
+      const all: Tournament[] = await res.json();
+      setTournaments((all ?? []).filter(t => t.tournament_type !== 'rotating'));
+    }
   };
 
   const handleCreate = async () => {
@@ -199,6 +207,24 @@ export default function AdminTournamentsPage() {
       setRegistrations(res.ok ? await res.json() : []);
     } finally {
       setRegsLoading(false);
+    }
+  };
+
+  // Late signups: pairs up any new registrants and appends matches for them.
+  // Never rewrites existing brackets or matchups.
+  const handleAddLateTeams = async (id: string) => {
+    setBusyId(id + '-late');
+    setLateMsg(prev => ({ ...prev, [id]: '' }));
+    try {
+      const res = await fetchApi(`/api/tournaments/${id}/add-late-teams`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      setLateMsg(prev => ({
+        ...prev,
+        [id]: res.ok ? (data.message ?? 'Done') : (data.error ?? 'Failed to add late teams'),
+      }));
+      if (res.ok) await refreshTournaments();
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -460,6 +486,9 @@ export default function AdminTournamentsPage() {
                   </label>
                   <div className="flex gap-2">
                     {([
+                      // Competitive (rotating) sessions are created on their
+                      // own admin tab, which has no bracket/team-formation
+                      // options to get wrong.
                       { key: 'bracket',     label: 'Bracket',     icon: GitBranch },
                       { key: 'round_robin', label: 'Round Robin', icon: LayoutList },
                     ] as const).map(({ key, label, icon: Icon }) => (
@@ -550,7 +579,9 @@ export default function AdminTournamentsPage() {
                                 {t.team_formation === 'random' ? 'Random Teams' : 'Players Choose Teams'}
                               </span>
                               <span className="text-xs font-medium px-2.5 py-0.5 rounded-full border bg-violet-50 text-violet-700 border-violet-200">
-                                {t.tournament_type === 'round_robin' ? 'Round Robin' : 'Bracket'}
+                                {t.tournament_type === 'round_robin' ? 'Round Robin'
+                                  : t.tournament_type === 'rotating' ? 'Competitive (Rotating Nets)'
+                                  : 'Bracket'}
                               </span>
                             </div>
                             {t.description && (
@@ -637,6 +668,16 @@ export default function AdminTournamentsPage() {
                                   Form Teams
                                 </button>
 
+                                <button
+                                  onClick={() => handleAddLateTeams(t.id)}
+                                  disabled={!!busyId}
+                                  title="Pair up late signups and append matches for them — existing matchups are untouched"
+                                  className="text-xs px-3 py-1.5 rounded-full font-semibold border transition-colors flex items-center gap-1.5 disabled:opacity-60 border-green-200 text-green-700 hover:bg-green-50"
+                                >
+                                  {busyId === t.id + '-late' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                                  Add Late Signups
+                                </button>
+
                                 {t.tournament_type === 'round_robin' ? (
                                   <>
                                     <button
@@ -671,6 +712,9 @@ export default function AdminTournamentsPage() {
 
                             {formTeamsMsg[t.id] && (
                               <p className="text-xs text-gray-500 mb-2">{formTeamsMsg[t.id]}</p>
+                            )}
+                            {lateMsg[t.id] && (
+                              <p className="text-xs text-green-700 mb-2">{lateMsg[t.id]}</p>
                             )}
                             {bracketMsg[t.id] && (
                               <div className="flex items-center gap-3 mb-3">

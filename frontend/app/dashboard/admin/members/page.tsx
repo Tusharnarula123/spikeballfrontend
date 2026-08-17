@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { DashboardShell, SectionHeading, Card, EmptyState, Chip } from '@/components/ui/dashboard-shell';
 import {
   Users, UserCheck, Search, Loader2, Check, X, Award, Clock,
-  GraduationCap, Zap, ShieldOff, RotateCcw, Medal,
+  GraduationCap, Zap, ShieldOff, RotateCcw, Medal, Trash2,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useApi } from '@/hooks/use-api';
@@ -34,9 +34,18 @@ interface Badge {
   trigger_type: string;
 }
 
+/** One badge a player currently holds. `id` is the player_badges row id. */
+interface HeldBadge {
+  id: string;
+  awarded_at: string;
+  badges: { name: string; description: string } | null;
+  tournament: { id: string; name: string } | null;
+}
+
 interface TournamentOption {
   id: string;
   name: string;
+  start_date: string | null;
 }
 
 const STATUS_STYLES: Record<Member['status'], string> = {
@@ -63,10 +72,13 @@ export default function AdminMembersPage() {
 
   // Badge modal
   const [badgeTarget, setBadgeTarget] = useState<Member | null>(null);
-  const [selectedBadgeId, setSelectedBadgeId] = useState('');
+  const [selectedBadgeIds, setSelectedBadgeIds] = useState<string[]>([]);
   const [selectedTournamentId, setSelectedTournamentId] = useState('');
   const [awarding, setAwarding] = useState(false);
   const [awardMsg, setAwardMsg] = useState<string | null>(null);
+  const [heldBadges, setHeldBadges] = useState<HeldBadge[]>([]);
+  const [heldLoading, setHeldLoading] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const isAdmin = user?.publicMetadata?.role === 'admin';
 
@@ -87,7 +99,9 @@ export default function AdminMembersPage() {
         const [, bRes, tRes] = await Promise.all([
           refresh(),
           apiFetch('/api/badges'),
-          apiFetch('/api/tournaments'),
+          // /api/tournaments is auth-gated — apiFetch sends no token, which
+          // 401'd and left the tournament dropdown silently empty.
+          fetchApi('/api/tournaments'),
         ]);
         if (bRes.ok) setBadges(await bRes.json());
         if (tRes.ok) setTournaments(await tRes.json());
@@ -134,33 +148,77 @@ export default function AdminMembersPage() {
     }
   };
 
+  // Badges the target player currently holds — loaded when the modal opens so
+  // an admin can see and remove them alongside awarding new ones.
+  const loadHeldBadges = async (playerId: string) => {
+    setHeldLoading(true);
+    try {
+      const res = await fetchApi(`/api/players/${playerId}/profile`);
+      const data = res.ok ? await res.json() : null;
+      setHeldBadges(data?.badges ?? []);
+    } catch {
+      setHeldBadges([]);
+    } finally {
+      setHeldLoading(false);
+    }
+  };
+
+  const handleRevoke = async (rowId: string) => {
+    if (!badgeTarget) return;
+    setRevokingId(rowId);
+    setAwardMsg(null);
+    try {
+      const res = await fetchApi(`/api/badges/awarded/${rowId}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAwardMsg(data.error ?? 'Failed to remove badge');
+        return;
+      }
+      setHeldBadges(prev => prev.filter(b => b.id !== rowId));
+      setAwardMsg('Badge removed — the player has been notified.');
+    } finally {
+      setRevokingId(null);
+    }
+  };
+
   const handleAward = async () => {
-    if (!badgeTarget || !selectedBadgeId) return;
+    if (!badgeTarget || selectedBadgeIds.length === 0) return;
     setAwarding(true);
     setAwardMsg(null);
     try {
-      const res = await fetchApi('/api/badges/award', {
-        method: 'POST',
-        body: JSON.stringify({
-          playerId: badgeTarget.id,
-          badgeId: selectedBadgeId,
-          tournamentId: selectedTournamentId || undefined,
+      // ponytail: award one request per badge rather than adding a bulk
+      // endpoint — an admin picks a handful at most. Add a bulk route if
+      // someone starts awarding dozens at once.
+      const results = await Promise.all(
+        selectedBadgeIds.map(async (badgeId) => {
+          const res = await fetchApi('/api/badges/award', {
+            method: 'POST',
+            body: JSON.stringify({
+              playerId: badgeTarget.id,
+              badgeId,
+              tournamentId: selectedTournamentId || undefined,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          return { ok: res.ok, error: data.error as string | undefined };
         }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setAwardMsg(data.error?.includes('duplicate')
-          ? 'This player already has that badge.'
-          : data.error ?? 'Failed to award badge');
-        return;
+      );
+
+      const failed = results.filter(r => !r.ok);
+      const awarded = results.length - failed.length;
+
+      if (awarded > 0 && failed.length === 0) {
+        setAwardMsg(`${awarded} badge${awarded === 1 ? '' : 's'} awarded! 🎉`);
+      } else if (awarded > 0) {
+        setAwardMsg(`${awarded} awarded, ${failed.length} skipped (${failed[0].error ?? 'already held'}).`);
+      } else {
+        setAwardMsg(failed[0]?.error ?? 'Failed to award badge');
       }
-      setAwardMsg('Badge awarded! 🎉');
-      setTimeout(() => {
-        setBadgeTarget(null);
-        setSelectedBadgeId('');
-        setSelectedTournamentId('');
-        setAwardMsg(null);
-      }, 1200);
+
+      setSelectedBadgeIds([]);
+      // Keep the modal open and refresh — new badges show up in the list
+      // above, removable straight away if any were a mistake.
+      await loadHeldBadges(badgeTarget.id);
     } finally {
       setAwarding(false);
     }
@@ -363,7 +421,14 @@ export default function AdminMembersPage() {
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-1.5">
                         <button
-                          onClick={() => { setBadgeTarget(m); setSelectedBadgeId(''); setSelectedTournamentId(''); setAwardMsg(null); }}
+                          onClick={() => {
+                            setBadgeTarget(m);
+                            setSelectedBadgeIds([]);
+                            setSelectedTournamentId('');
+                            setAwardMsg(null);
+                            setHeldBadges([]);
+                            loadHeldBadges(m.id);
+                          }}
                           title="Award badge"
                           className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:border-[#FFB81C] hover:text-[#FFB81C] transition-colors"
                         >
@@ -422,27 +487,87 @@ export default function AdminMembersPage() {
                 Badges with automatic triggers are normally earned through play — manual awards are for special recognition.
               </p>
 
-              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-                {badges.map(b => (
-                  <button
-                    key={b.id}
-                    type="button"
-                    onClick={() => setSelectedBadgeId(b.id)}
-                    className="w-full text-left px-4 py-3 rounded-xl border transition-all duration-150"
-                    style={{
-                      borderColor: selectedBadgeId === b.id ? '#FFB81C' : '#eee',
-                      backgroundColor: selectedBadgeId === b.id ? 'rgba(255,184,28,0.08)' : 'transparent',
-                    }}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-gray-900">{b.name}</p>
-                      <Chip className="bg-gray-50 text-gray-400 border-gray-200 capitalize">
-                        {b.trigger_type.replace(/_/g, ' ')}
-                      </Chip>
+              {/* Badges this player already holds — removable individually.
+                  Always rendered so the remove affordance is discoverable. */}
+              <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                    Current Badges
+                  </label>
+                  {heldLoading ? (
+                    <p className="text-xs text-gray-400 py-2">Loading…</p>
+                  ) : heldBadges.length === 0 ? (
+                    <p className="text-xs text-gray-400 py-2">This player has no badges yet.</p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                      {heldBadges.map(hb => (
+                        <div
+                          key={hb.id}
+                          className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg border border-gray-100 bg-gray-50/60"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {hb.badges?.name ?? 'Badge'}
+                            </p>
+                            {hb.tournament && (
+                              <p className="text-[11px] text-gray-400 truncate">{hb.tournament.name}</p>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => handleRevoke(hb.id)}
+                            disabled={revokingId === hb.id}
+                            title="Remove this badge"
+                            className="flex-shrink-0 p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                          >
+                            {revokingId === hb.id
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : <Trash2 className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                    <p className="text-xs text-gray-400 mt-0.5">{b.description}</p>
-                  </button>
-                ))}
+                  )}
+              </div>
+
+              <label className="block text-xs font-semibold text-gray-600 -mb-2 uppercase tracking-wide">
+                Award Badges <span className="text-gray-400 font-normal normal-case">(select any number)</span>
+              </label>
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {badges.map(b => {
+                  const picked = selectedBadgeIds.includes(b.id);
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => setSelectedBadgeIds(prev =>
+                        picked ? prev.filter(id => id !== b.id) : [...prev, b.id],
+                      )}
+                      className="w-full text-left px-4 py-3 rounded-xl border transition-all duration-150"
+                      style={{
+                        borderColor: picked ? '#FFB81C' : '#eee',
+                        backgroundColor: picked ? 'rgba(255,184,28,0.08)' : 'transparent',
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className="flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center"
+                            style={{
+                              borderColor: picked ? '#FFB81C' : '#ddd',
+                              backgroundColor: picked ? '#FFB81C' : 'transparent',
+                            }}
+                          >
+                            {picked && <Check className="w-3 h-3 text-[#0a0a0a]" />}
+                          </span>
+                          <p className="text-sm font-semibold text-gray-900 truncate">{b.name}</p>
+                        </div>
+                        <Chip className="bg-gray-50 text-gray-400 border-gray-200 capitalize">
+                          {b.trigger_type.replace(/_/g, ' ')}
+                        </Chip>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-0.5 ml-6">{b.description}</p>
+                    </button>
+                  );
+                })}
               </div>
 
               <div>
@@ -455,17 +580,23 @@ export default function AdminMembersPage() {
                   className="w-full px-3.5 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#FFB81C] focus:border-transparent transition-all"
                 >
                   <option value="">No specific tournament</option>
-                  {tournaments.map(t => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
+                  {/* Every tournament, past ones included and newest first —
+                      admins award long after an event has finished. */}
+                  {[...tournaments]
+                    .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? ''))
+                    .map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}{t.start_date ? ` — ${new Date(t.start_date).toLocaleDateString()}` : ''}
+                      </option>
+                    ))}
                 </select>
                 <p className="text-[11px] text-gray-400 mt-1">
-                  Tying this badge to a tournament lets the player see where they earned it, and lets them earn the same badge again in a future tournament.
+                  Tying these badges to a tournament lets the player see where they earned them, and lets them earn the same badge again in a future tournament.
                 </p>
               </div>
 
               {awardMsg && (
-                <p className={`text-xs ${awardMsg.includes('🎉') ? 'text-green-600' : 'text-red-500'}`}>{awardMsg}</p>
+                <p className={`text-xs ${awardMsg.includes('🎉') || awardMsg.includes('removed') ? 'text-green-600' : 'text-red-500'}`}>{awardMsg}</p>
               )}
             </div>
 
@@ -478,11 +609,13 @@ export default function AdminMembersPage() {
               </button>
               <button
                 onClick={handleAward}
-                disabled={awarding || !selectedBadgeId}
+                disabled={awarding || selectedBadgeIds.length === 0}
                 className="flex-1 px-4 py-2.5 bg-[#FFB81C] rounded-lg text-sm font-bold text-[#0a0a0a] hover:bg-[#e6a418] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
                 {awarding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                {awarding ? 'Awarding…' : 'Award Badge'}
+                {awarding
+                  ? 'Awarding…'
+                  : `Award ${selectedBadgeIds.length || ''} Badge${selectedBadgeIds.length === 1 ? '' : 's'}`.replace('  ', ' ')}
               </button>
             </div>
           </div>

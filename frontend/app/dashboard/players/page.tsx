@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardShell } from '@/components/ui/dashboard-shell';
-import { apiFetch } from '@/lib/api';
+import { useApi } from '@/hooks/use-api';
 import { Search, Users, TrendingUp, Filter } from 'lucide-react';
 import Image from 'next/image';
 
@@ -74,6 +74,7 @@ function PlayerCard({ player, onClick }: { player: Player; onClick: () => void }
 
 export default function PlayersDirectoryPage() {
   const router = useRouter();
+  const { fetchApi, isLoaded: authLoaded } = useApi();
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -91,7 +92,7 @@ export default function PlayersDirectoryPage() {
     try {
       const params = new URLSearchParams({ status: 'active' });
       if (q) params.set('search', q);
-      const res = await apiFetch(`/api/players?${params}`);
+      const res = await fetchApi(`/api/players?${params}`);
       if (res.ok) {
         const data = await res.json();
         setPlayers(data ?? []);
@@ -99,11 +100,12 @@ export default function PlayersDirectoryPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchApi]);
 
   useEffect(() => {
+    if (!authLoaded) return;
     fetchPlayers(debouncedSearch);
-  }, [debouncedSearch, fetchPlayers]);
+  }, [authLoaded, debouncedSearch, fetchPlayers]);
 
   const filtered = genderFilter === 'all'
     ? players

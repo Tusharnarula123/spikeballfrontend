@@ -523,7 +523,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="h-screen bg-[#0a0a0a] flex overflow-hidden">
+    <div className="h-screen supports-[height:100dvh]:h-[100dvh] bg-[#0a0a0a] flex overflow-hidden">
       <Sidebar
         playerName={fullName}
         playerInitials={initials}

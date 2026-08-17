@@ -265,7 +265,7 @@ const WIDTHS = {
 
 export function PageLoader() {
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-[#0a0a0a] gap-3">
+    <div className="flex flex-col items-center justify-center h-screen supports-[height:100dvh]:h-[100dvh] bg-[#0a0a0a] gap-3">
       <div className="w-9 h-9 border-2 border-[#FFB81C] border-t-transparent rounded-full animate-spin" />
       <p className="text-xs tracking-widest uppercase text-[#FFB81C]/60">OU Roundnet</p>
     </div>
@@ -295,7 +295,11 @@ export function DashboardShell({
   const isAdmin = user?.publicMetadata?.role === 'admin';
 
   return (
-    <div className="flex h-screen bg-[#f5f4f0] overflow-hidden">
+    /* 100dvh, not 100vh: on mobile Safari 100vh is the height with browser
+       chrome hidden, so the shell overflows the visible area, the whole
+       document scrolls, the header scrolls away and the fixed hamburger
+       ends up floating over page content. h-screen stays as the fallback. */
+    <div className="flex h-screen supports-[height:100dvh]:h-[100dvh] bg-[#f5f4f0] overflow-hidden">
       <Sidebar
         playerName={name}
         playerInitials={initials}
@@ -319,7 +323,8 @@ export function DashboardShell({
         </header>
 
         <div className="flex-1 overflow-y-auto">
-          <div className={`${WIDTHS[width]} mx-auto px-6 py-8 space-y-6`}>
+          {/* Tighter gutters on phones so cards get the width back. */}
+          <div className={`${WIDTHS[width]} mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6`}>
             {children}
           </div>
         </div>

@@ -234,14 +234,16 @@ export default function AdminCompetitivePage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-50">
+        {/* Stacks on mobile — side by side there's no room for the helper
+            text and button both, and the button label was wrapping. */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4 pt-4 border-t border-gray-50">
           <p className="text-xs text-gray-400">
             Ranked · rotating nets · players sign up individually
           </p>
           <button
             onClick={handleCreate}
             disabled={creating}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-black transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-black transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 w-full sm:w-auto flex-shrink-0"
             style={{ backgroundColor: '#FFB81C' }}
           >
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
